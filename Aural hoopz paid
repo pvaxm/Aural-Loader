@@ -1,311 +1,18 @@
 getgenv().aural = true
 
-
-local Janitor = (function()
-    local Janitor = {}
-Janitor.__index = Janitor
-Janitor.ClassName = "Janitor"
-
-local DEFAULT_METHODS = { "Destroy", "Disconnect", "destroy", "disconnect", "Cleanup" }
-
-local function runCleanup(entry)
-    local obj, method = entry.obj, entry.method
-    local kind = typeof(obj)
-
-    if method then
-        if method == true then
-            -- method == true means "call it as a function"
-            if type(obj) == "function" then obj() end
-            return
-        end
-        local fn = obj[method]
-        if type(fn) == "function" then
-            fn(obj)
-        end
-        return
-    end
-
-    if kind == "function" then
-        obj()
-    elseif kind == "RBXScriptConnection" then
-        if obj.Connected then obj:Disconnect() end
-    elseif kind == "Instance" then
-        obj:Destroy()
-    elseif kind == "thread" then
-        if coroutine.status(obj) ~= "dead" and obj ~= coroutine.running() then
-            task.cancel(obj)
-        end
-    elseif kind == "table" or kind == "userdata" then
-        for _, name in ipairs(DEFAULT_METHODS) do
-            local ok, fn = pcall(function() return obj[name] end)
-            if ok and type(fn) == "function" then
-                fn(obj)
-                return
-            end
-        end
-    end
-end
-
-function Janitor.new()
-    return setmetatable({
-        _entries = {},     -- ordered list of { obj, method, name }
-        _named = {},       -- name -> entry
-        _cleaning = false,
-        _destroyed = false,
-    }, Janitor)
-end
-
-function Janitor.is(x)
-    return type(x) == "table" and getmetatable(x) == Janitor
-end
-
-function Janitor:Add(obj, method, name)
-    if self._destroyed then
-        -- janitor is dead, immediately clean whatever was passed in
-        pcall(runCleanup, { obj = obj, method = method })
-        return obj
-    end
-
-    if name ~= nil then
-        self:Remove(name) -- replace existing entry with same name
-    end
-
-    local entry = { obj = obj, method = method, name = name }
-    table.insert(self._entries, entry)
-    if name ~= nil then
-        self._named[name] = entry
-    end
-    return obj
-end
-
-function Janitor:Connect(signal, fn, name)
-    return self:Add(signal:Connect(fn), nil, name)
-end
-
-function Janitor:Spawn(fn, ...)
-    local thread = task.spawn(fn, ...)
-    return self:Add(thread)
-end
-
-function Janitor:Delay(t, fn, ...)
-    local thread = task.delay(t, fn, ...)
-    return self:Add(thread)
-end
-
-function Janitor:Sub(name)
-    local child = Janitor.new()
-    self:Add(child, "Destroy", name)
-    return child
-end
-
-function Janitor:Get(name)
-    local entry = self._named[name]
-    return entry and entry.obj or nil
-end
-
-function Janitor:Remove(name)
-    local entry = self._named[name]
-    if not entry then return false end
-    self._named[name] = nil
-
-    for i, e in ipairs(self._entries) do
-        if e == entry then
-            table.remove(self._entries, i)
-            break
-        end
-    end
-
-    local ok, err = pcall(runCleanup, entry)
-    if not ok then warn("[Janitor] cleanup error (" .. tostring(name) .. "): " .. tostring(err)) end
-    return true
-end
-
-function Janitor:Cleanup()
-    if self._cleaning then return end
-    self._cleaning = true
-
-    local entries = self._entries
-    self._entries = {}
-    self._named = {}
-
-    -- LIFO: last added is first cleaned
-    for i = #entries, 1, -1 do
-        local ok, err = pcall(runCleanup, entries[i])
-        if not ok then
-            warn("[Janitor] cleanup error: " .. tostring(err))
-        end
-    end
-
-    self._cleaning = false
-end
-
-function Janitor:Destroy()
-    self:Cleanup()
-    self._destroyed = true
-end
-
-function Janitor:LinkToInstance(instance)
-    local conn
-    conn = instance.Destroying:Connect(function()
-        if conn then conn:Disconnect() end
-        self:Cleanup()
-    end)
-    return self:Add(conn)
-end
-
-function Janitor:IsCleaning()
-    return self._cleaning
-end
-
-function Janitor:Count()
-    return #self._entries
-end
-
---------------------------------------------------------------------------
--- AUTO TRACK
--- Hooks Connect / Once / Instance.new / task.spawn / task.delay / task.defer
--- so everything your script creates is added to the janitor automatically.
--- Only tracks calls made from executor code (checkcaller), never game scripts.
---
---   janitor:AutoTrack({ connections = true, instances = true, threads = true })
---   janitor:StopAutoTrack()
---------------------------------------------------------------------------
-local env = (getgenv and getgenv()) or _G
-
-local function fromExecutor()
-    if checkcaller then return checkcaller() end
-    return true
-end
-
-local function autoAdd(obj, kind)
-    local st = env.__JanitorAutoTrack
-    if not st or not st.active then return end
-    local j = st.janitor
-    if not j or j._cleaning or j._destroyed then return end
-    if not st.want[kind] then return end
-    if not fromExecutor() then return end
-    j:Add(obj)
-end
-
-local function installHooks(st)
-    if not (hookfunction and newcclosure) then
-        warn("[Janitor] AutoTrack needs hookfunction + newcclosure")
-        return false
-    end
-
-    -- signal connections
-    pcall(function()
-        local sample = game.Changed
-        local oldConnect
-        oldConnect = hookfunction(sample.Connect, newcclosure(function(sig, fn, ...)
-            local conn = oldConnect(sig, fn, ...)
-            autoAdd(conn, "connections")
-            return conn
-        end))
-        st.installed.Connect = true
-    end)
-
-    pcall(function()
-        local sample = game.Changed
-        local oldOnce
-        oldOnce = hookfunction(sample.Once, newcclosure(function(sig, fn, ...)
-            local conn = oldOnce(sig, fn, ...)
-            autoAdd(conn, "connections")
-            return conn
-        end))
-        st.installed.Once = true
-    end)
-
-    -- instances
-    pcall(function()
-        local oldNew
-        oldNew = hookfunction(Instance.new, newcclosure(function(...)
-            local inst = oldNew(...)
-            autoAdd(inst, "instances")
-            return inst
-        end))
-        st.installed.InstanceNew = true
-    end)
-
-    -- threads (this also catches every `while task.wait() do` loop you spawn)
-    for _, name in ipairs({ "spawn", "delay", "defer" }) do
-        pcall(function()
-            local old
-            old = hookfunction(task[name], newcclosure(function(...)
-                local th = old(...)
-                if typeof(th) == "thread" then autoAdd(th, "threads") end
-                return th
-            end))
-            st.installed["task." .. name] = true
-        end)
-    end
-
-    return true
-end
-
-function Janitor:AutoTrack(opts)
-    opts = opts or {}
-    local st = env.__JanitorAutoTrack
-    if not st then
-        st = { installed = {}, active = false }
-        env.__JanitorAutoTrack = st
-        installHooks(st) -- hooks are installed once; they just read st below
-    end
-
-    st.want = {
-        connections = opts.connections ~= false,
-        instances   = opts.instances ~= false,
-        threads     = opts.threads ~= false,
-    }
-    st.janitor = self
-    st.active = true
-
-    -- stop tracking whenever this janitor is cleaned up
-    self:Add(function()
-        if st.janitor == self then
-            st.active = false
-            st.janitor = nil
-        end
-    end, nil, "__autotrack")
-
-    return st.installed
-end
-
-function Janitor:StopAutoTrack()
-    local st = env.__JanitorAutoTrack
-    if st and st.janitor == self then
-        st.active = false
-        st.janitor = nil
-    end
-end
-
-return Janitor
-end)()
-
-if getgenv().__aural_janitor then
-    pcall(function() getgenv().__aural_janitor:Destroy() end)
-end
-
-local J = Janitor.new()
-getgenv().__aural_janitor = J
-J:AutoTrack()
-
-
-
-
 local Players = cloneref(game:GetService("Players"))
 local remote = cloneref(game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("lukeEvent"))
 local TweenService = cloneref(game:GetService("TweenService"))
 
 local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Camera = workspace.CurrentCamera
-local Icon
+local Iconw
 local IconCenter
 
 getgenv().Settings = {
     Shooting = {
         Mode = "Aural", AuralEnabled = false, FatalEnabled = false,
-        ArcMode = "High",
         ShotDelay = 0.32, ShotYAxis = 0, RandomizeShotDelay = false,
         ShotDelayMin = 0.25, ShotDelayMax = 0.38, GreenChance = 0,
         ThreesOnly = false, AimAssist = false, EBLHop = false
@@ -655,35 +362,143 @@ TrajColors = {
     Rainbow = nil,
 }
 
-   local fieldGoals = {}
-
-    for _, inst in ipairs(workspace:GetDescendants()) do
-        local n = inst.Name
-        if n == "FieldGoal" and inst:IsA("BasePart") then
-            table.insert(fieldGoals, inst)
-        end
-    end
-
 function getclosestdunkfunc()
-        local char = LocalPlayer.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-        local pos = hrp.Position
-
-        for i = #fieldGoals, 1, -1 do
-            local v = fieldGoals[i]
-            if not v.Parent then
-                table.remove(fieldGoals, i)
-            elseif (pos - v.Position).Magnitude <= 13 then
+    local courts = workspace:FindFirstChild("Courts")
+    if not courts then return end
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    for _, v in courts:GetDescendants() do
+        if v:IsA("BasePart") and v.Name == "FieldGoal" then
+            if (hrp.Position - v.Position).Magnitude <= 13 then
                 return v:FindFirstChild("dunkFunction")
             end
         end
     end
+end
 
 Moderators = {
     "izzran","wistfulmikk","Bibliogical","aepione","kyraizo",
     "ar1sxm","westline60s","Iukejdjd","Ninja215215"
 }
+
+-- ============================================================
+-- RANK DATA (for Show Hidden Ranks & Check Player Rank)
+-- ============================================================
+local AssetToRank = {
+    ["rbxassetid://14165915493"] = "Rookie 1",
+    ["rbxassetid://14165975922"] = "Rookie 2",
+    ["rbxassetid://14165978053"] = "Rookie 3",
+    ["rbxassetid://14166007262"] = "Vet 1",
+    ["rbxassetid://14166011663"] = "Vet 2",
+    ["rbxassetid://14166013563"] = "Vet 3",
+    ["rbxassetid://14166019042"] = "Elite 1",
+    ["rbxassetid://14166023955"] = "Elite 2",
+    ["rbxassetid://14166026844"] = "Elite 3",
+    ["rbxassetid://14187180546"] = "Pro 1",
+    ["rbxassetid://14187180106"] = "Pro 2",
+    ["rbxassetid://14187179827"] = "Pro 3",
+    ["rbxassetid://14187181467"] = "All Star 1",
+    ["rbxassetid://14187181150"] = "All Star 2",
+    ["rbxassetid://14187180924"] = "All Star 3",
+    ["rbxassetid://14187179489"] = "Superstar 1",
+    ["rbxassetid://14187179186"] = "Superstar 2",
+    ["rbxassetid://14187178679"] = "Superstar 3",
+    ["rbxassetid://13484987342"] = "Phenom 1",
+    ["rbxassetid://13485004810"] = "Phenom 2",
+    ["rbxassetid://13485006514"] = "Phenom 3",
+    ["rbxassetid://14167233141"] = "Legend 1",
+    ["rbxassetid://14167235510"] = "Legend 2",
+    ["rbxassetid://14167237260"] = "Legend 3",
+    ["rbxassetid://14185642489"] = "Mamba 1",
+    ["rbxassetid://14185642282"] = "Mamba 2",
+    ["rbxassetid://14185642028"] = "Mamba 3",
+    ["rbxassetid://14283578058"] = "HOF 1",
+    ["rbxassetid://14283579550"] = "HOF 2",
+    ["rbxassetid://14283580694"] = "HOF 3",
+    ["rbxassetid://77138610848646"] = "GOAT 1",
+    ["rbxassetid://86598509749459"] = "GOAT 2",
+    ["rbxassetid://110393157867452"] = "GOAT 3",
+    ["rbxassetid://102904904602539"] = "AURA 1",
+    ["rbxassetid://125314945084878"] = "AURA 3",
+}
+
+-- ============================================================
+-- RANK FUNCTIONS
+-- ============================================================
+local function getPlayerRankFromList(playerName)
+    local playerlist = PlayerGui:FindFirstChild("Playerlist")
+    if not playerlist then return nil end
+    local frame = playerlist:FindFirstChild("Frame")
+    if not frame then return nil end
+    local scrollingFrame = frame:FindFirstChild("ScrollingFrame")
+    if not scrollingFrame then return nil end
+    local playerFrame = scrollingFrame:FindFirstChild(playerName)
+    if not playerFrame then return nil end
+    local main = playerFrame:FindFirstChild("Main")
+    if not main then return nil end
+    local rankIcon = main:FindFirstChild("RankIcon")
+    if not rankIcon then return nil end
+    local imageId = rankIcon.Image
+    if not imageId or imageId == "" then return nil end
+    local rank = AssetToRank[imageId]
+    if rank then return rank end
+    local numericId = imageId:match("%d+")
+    if numericId then
+        rank = AssetToRank["rbxassetid://" .. numericId]
+        if rank then return rank end
+    end
+    return nil
+end
+
+local function checkPlayerRank(playerName)
+    local rank = getPlayerRankFromList(playerName)
+    return rank or "Unknown"
+end
+
+-- ============================================================
+-- SHOW HIDDEN RANKS
+-- ============================================================
+local hiddenRanksConnection = nil
+
+local function revealHiddenRanks()
+    local Playerlist = PlayerGui:FindFirstChild("Playerlist")
+    if Playerlist then
+        local Frame = Playerlist:FindFirstChild("Frame")
+        if Frame then
+            local ScrollingFrame = Frame:FindFirstChild("ScrollingFrame")
+            if ScrollingFrame then
+                for _, playerEntry in pairs(ScrollingFrame:GetChildren()) do
+                    local Main = playerEntry:FindFirstChild("Main")
+                    if Main then
+                        local RankIcon = Main:FindFirstChild("RankIcon")
+                        if RankIcon then
+                            local HiddenText = RankIcon:FindFirstChild("HiddenText")
+                            if HiddenText then HiddenText:Destroy() end
+                            local HiddenColor = RankIcon:FindFirstChild("HiddenColor")
+                            if HiddenColor then HiddenColor:Destroy() end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function startHiddenRanksLoop()
+    if hiddenRanksConnection then return end
+    hiddenRanksConnection = task.spawn(function()
+        while s.Visuals.ShowHiddenRanks do
+            revealHiddenRanks()
+            task.wait(2)
+        end
+    end)
+end
+
+local function stopHiddenRanksLoop()
+    s.Visuals.ShowHiddenRanks = false
+    hiddenRanksConnection = nil
+end
 
 local Client = LocalPlayer
 local Effects, EffectNames = {}, {}
@@ -904,109 +719,6 @@ do
     end
 end
 
-do
-    local lowArcTable = {
-        [20]=20,[21]=22,[22]=24,[23]=24,[24]=25,[25]=25,[26]=26,[27]=26,[28]=27,[29]=27,
-        [30]=28,[31]=28,[32]=28,[33]=29,[34]=29,[35]=29,[36]=30,[37]=30,[38]=30,[39]=31,
-        [40]=31,[41]=32,[42]=32,[43]=33,[44]=34,[45]=33,[46]=34,[47]=34,[48]=35,[49]=35,
-        [50]=36,[51]=38,[52]=40,[53]=42,[54]=44,[55]=46,[56]=46,[57]=44,[58]=42,[59]=38,
-        [60]=34,[61]=20,[62]=60,[63]=56,[64]=52,[65]=48,[66]=44,[67]=40,[68]=66,[69]=62,
-        [70]=58,[71]=54,[72]=50,[73]=46
-    }
-
-    local function GetLowArc(dist)
-        local d = math.floor(dist + 0.5)
-        return lowArcTable[d] or 28
-    end
-
-    local function getHighArcBase(dist)
-    if dist <= 17 then
-        return inner_arc_data[17]
-    elseif dist <= 29 then
-        local lo, hi = math.floor(dist), math.ceil(dist)
-        if lo == hi then return inner_arc_data[lo] end
-        local frac = dist - lo
-        return inner_arc_data[lo] + (inner_arc_data[hi] - inner_arc_data[lo]) * frac
-    elseif dist <= 59 then
-        return shot_data[59] -- adjust if your table indexes differently
-    elseif dist <= 73 then
-        local d = math.floor(dist + 0.5)
-        if shot_data[d] then return shot_data[d] end
-        local lo, hi = math.floor(dist), math.ceil(dist)
-        local flo, fhi = shot_data[lo], shot_data[hi]
-        if flo and fhi then
-            return flo + (fhi - flo) * (dist - lo)
-        end
-        return shot_data[59] + (shot_data[73] - shot_data[59]) * ((dist - 59) / 14)
-    end
-    return shot_data[73]
-end
-
-    local function GetLowArcPower(dist)
-        if dist <= 12 then return 30
-        elseif dist <= 16 then return 35
-        elseif dist <= 21 then return 40
-        elseif dist <= 26 then return 45
-        elseif dist <= 31 then return 50
-        elseif dist <= 36 then return 55
-        elseif dist <= 41 then return 60
-        elseif dist <= 46 then return 65
-        elseif dist <= 50 then return 70
-        elseif dist <= 60 then return 75
-        elseif dist <= 67 then return 80
-        elseif dist <= 74 then return 85
-        else return 75 end
-    end
-
-    local lowarcpower = 0
-local lowarcdist = 0
-
-RunService.RenderStepped:Connect(function()
-    if s.Shooting.ArcMode ~= "Low" then
-        return
-    end
-
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-
-    if not hrp then
-        return
-    end
-
-    local goal = findNearestGoal()
-
-    if not goal then
-        return
-    end
-
-    local playerpos = Vector3.new(hrp.Position.X, 0, hrp.Position.Z)
-    local goalpos = Vector3.new(goal.Position.X, 0, goal.Position.Z)
-    local dist = (playerpos - goalpos).Magnitude
-
-    local power = GetLowArcPower(dist)
-
-    if power ~= lowarcpower then
-        lowarcpower = power
-        lowarcdist = dist
-        setpower(power)
-    end
-end)
-
-    -- returns arcBase, power (only called by Aural code)
-    function pickAuralArc(dist)
-        local mode = getgenv().Settings.Shooting.ArcMode or "High"
-        if mode == "Low" then
-            return GetLowArc(dist), GetLowArcPower(dist)
-        elseif mode == "Mixed" then
-            if math.random(0, 1) == 1 then
-                return GetLowArc(dist), GetLowArcPower(dist)
-            end
-            return getHighArcBase(dist), 85
-        end
-        return getHighArcBase(dist), 85
-    end
-end
-
 shot_data = {
     [59]=83,[60]=81,[61]=82,[62]=79,[63]=78.8,[64]=75,[65]=74.8,[66]=71,
     [67]=70.8,[68]=66,[69]=62,[70]=59,[71]=51,[72]=51,[73]=51
@@ -1031,9 +743,38 @@ mobileArcs = {
 
 do
     function getArcOffset(dist)
-    local arc = pickAuralArc(dist)
-    return arc
-end
+        local isMobile = UserInputService.TouchEnabled
+        if isMobile then
+            local d = math.floor(dist + 0.5)
+            if d < 30 then d = 30 end
+            if d > 73 then d = 73 end
+            return mobileArcs[d] or 37
+        end
+        if inner_arc_data[dist] then return inner_arc_data[dist] end
+        if shot_data[dist] then return shot_data[dist] end
+        if dist < 7 then return 122 end
+        if dist > 73 then return math.max(20, 50 - (dist - 73) * 1.5) end
+        local lower, upper = nil, nil
+        for d in pairs(inner_arc_data) do
+            if d <= dist and (not lower or d > lower) then lower = d end
+            if d >= dist and (not upper or d < upper) then upper = d end
+        end
+        for d in pairs(shot_data) do
+            if d <= dist and (not lower or d > lower) then lower = d end
+            if d >= dist and (not upper or d < upper) then upper = d end
+        end
+        if lower and upper and lower ~= upper then
+            local lowerVal = inner_arc_data[lower] or shot_data[lower] or 0
+            local upperVal = inner_arc_data[upper] or shot_data[upper] or 0
+            local t = (dist - lower) / (upper - lower)
+            return lowerVal + (upperVal - lowerVal) * t
+        elseif lower then
+            return inner_arc_data[lower] or shot_data[lower] or 0
+        elseif upper then
+            return inner_arc_data[upper] or shot_data[upper] or 0
+        end
+        return 100
+    end
 
     function getArc(dist, power)
         local isMobile = UserInputService.TouchEnabled
@@ -1262,31 +1003,6 @@ do
             if dist < closestDist then closestDist = dist; closest = plr end
         end
         return closest
-    end
-
-    do
-    -- cache which team you're on, per court (refreshes every 0.25s)
-    local teamCache = setmetatable({}, { __mode = "k" })
-
-    local function myTeamFor(court)
-        local folder = court and court:FindFirstChild("_CourtPlayers")
-        if not folder then return nil end
-
-        local now = os.clock()
-        local e = teamCache[folder]
-        if e and now - e.t < 0.25 then return e.team end
-
-        local team = nil
-        for _, v in ipairs(folder:GetChildren()) do
-            if v:IsA("ObjectValue") and v.Value == LocalPlayer then
-                local side = v.Name:sub(1, 4)
-                if side == "Home" or side == "Away" then team = side end
-                break
-            end
-        end
-
-        teamCache[folder] = { team = team, t = now }
-        return team
     end
 
     function getTeammateByIndex(index)
@@ -3322,13 +3038,13 @@ end
 
         if not goal or distance < minDist or distance > AURAL_MAX_DIST then return end
 
-        local arcBase, arcPower = pickAuralArc(distance)
-local targetPos = goal.Position + Vector3.new(0, arcBase + s.Shooting.ShotYAxis, 0)
-getgenv().__aural_lastArc = arcBase
-settarget(targetPos)
-task.wait(0.05)
+        local arc = getArcOffset(distance) + s.Shooting.ShotYAxis
+        local targetPos = goal.Position + Vector3.new(0, arc, 0)
 
-LocalPlayer:SetAttribute("Power", arcPower)
+        settarget(targetPos)
+        task.wait(0.05)
+
+        LocalPlayer:SetAttribute("Power", 85)
 
         local shotdelay = s.Shooting.ShotDelay or 0.25
 
@@ -4656,14 +4372,6 @@ do
         end
     })
 
-    auralSection:Dropdown({
-    Name = "Arc Mode",
-    Items = { "High", "Low", "Mixed" },
-    Default = s.Shooting.ArcMode,
-    Flag = "aural_arcmode",
-    Callback = function(v) s.Shooting.ArcMode = v end
-})
-
     auralSection:Toggle({
         Name = "EBL Hop",
         Default = s.Shooting.EBLHop,
@@ -5247,6 +4955,19 @@ do
             if v then startHideTags() else stopHideTags() end
         end
     })
+    otherVisSec:Toggle({
+        Name = "Show hidden ranks",
+        Default = s.Visuals.ShowHiddenRanks,
+        Flag = "vis_showranks",
+        Callback = function(v)
+            s.Visuals.ShowHiddenRanks = v
+            if v then
+                startHiddenRanksLoop()
+            else
+                stopHiddenRanksLoop()
+            end
+        end
+    })
 
 otherVisSec:Slider({
 
@@ -5369,6 +5090,7 @@ otherVisSec:Slider({
 })
     local miscSec = utilitySub:Section({ Name = "Miscellaneous", Side = 2 })
     local serverSec = utilitySub:Section({ Name = "Server", Side = 2 })
+    local infoSec = utilitySub:Section({ Name = "Player Info", Side = 1 })
 
     miscSec:Toggle({
         Name = "Anti moderator",
@@ -5458,6 +5180,67 @@ otherVisSec:Slider({
         end
     })
 
+    -- ============================================================
+    -- PLAYER RANK CHECKER
+    -- ============================================================
+    local selectedPlayerName = nil
+    local playerRankDropdown
+
+    local function getPlayerNameList()
+        local names = {"None"}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then
+                table.insert(names, p.Name)
+            end
+        end
+        table.sort(names)
+        return names
+    end
+
+    playerRankDropdown = infoSec:Dropdown({
+        Name = "Select player (rank check)",
+        Items = getPlayerNameList(),
+        Default = "None",
+        Flag = "rank_player_select",
+        Callback = function(v)
+            selectedPlayerName = v
+        end
+    })
+
+    infoSec:Button({
+        Name = "Refresh player list",
+        Callback = function()
+            local names = getPlayerNameList()
+            if playerRankDropdown and playerRankDropdown.Refresh then
+                pcall(function() playerRankDropdown:Refresh(names) end)
+            elseif playerRankDropdown and playerRankDropdown.SetValues then
+                pcall(function() playerRankDropdown:SetValues(names) end)
+            end
+        end
+    })
+
+    infoSec:Button({
+        Name = "Check player rank",
+        Callback = function()
+            if not selectedPlayerName or selectedPlayerName == "None" then
+                zolar:Notification({
+                    Name = "No Player Selected",
+                    Description = "Select a player from the dropdown first",
+                    Icon = "triangle-alert",
+                    Duration = 3
+                })
+                return
+            end
+            local rank = checkPlayerRank(selectedPlayerName)
+            zolar:Notification({
+                Name = "Rank: " .. selectedPlayerName,
+                Description = "Rank: " .. rank,
+                Icon = "award",
+                Duration = 4
+            })
+        end
+    })
+
     travelingSec:Button({
         Name = "Teleport to 2s",
         Callback = function()
@@ -5542,20 +5325,4 @@ otherVisSec:Slider({
         Icon = "crown",
         Duration = 3
     })
-    zolar:LoadAutoload()
-end
-
-J:Add(function()
-    state.active = false
-    pcall(settarget, nil)
-    pcall(function() RunService:UnbindFromRenderStep("Server Position Predictor") end)
-    pcall(function() if state.oldnewindex and restorefunction then restorefunction(state.oldnewindex) end end)
-    pcall(resetBallChanger)
-    pcall(resetGoalEffect)
-    pcall(RemoveAura)
-    pcall(function() setoob(false) end)
-    pcall(stopHideTags)
-    pcall(function() setPredictionEnabled(false) end)
-    pcall(resetTrailOnAllBalls)
-end, nil, "manual_leftovers")
 end
