@@ -290,10 +290,12 @@ local J = Janitor.new()
 getgenv().__aural_janitor = J
 J:AutoTrack()
 
+local zolar = loadstring(game:HttpGet("https://raw.githubusercontent.com/wimazawa-eng/ap/refs/heads/main/Testing.lua.txt"))()
 
-
+local hookfunction = oth.hook or hookfunction
 
 local Players = cloneref(game:GetService("Players"))
+local LocalPlayer = Players.LocalPlayer
 local remote = cloneref(game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("lukeEvent"))
 local TweenService = cloneref(game:GetService("TweenService"))
 
@@ -388,6 +390,7 @@ local Rankings = require(ReplicatedStorage.Util.Rankings)
 local networkstats = networkStats:FindFirstChild("Network", false) or networkStats:WaitForChild("Network", 60)
 local serverstatsitem = networkstats:FindFirstChild("ServerStatsItem", false) or networkstats:WaitForChild("ServerStatsItem", 60)
 local dataping = serverstatsitem:FindFirstChild("Data Ping", false) or serverstatsitem:WaitForChild("Data Ping", 60)
+local Spectate = require(Players[LocalPlayer.Name].PlayerGui:WaitForChild("SpectateUI"):WaitForChild("Spectate"))
 
 do
     local PowerUI = LocalPlayer.PlayerGui:WaitForChild("PowerUI")
@@ -4638,11 +4641,81 @@ do
     end)
 end
 
+local fallbackSpectating = false
+local specTarget = "None"
+
+local function refreshCourts()
+    local list = {}
+    local courtsFolder = workspace:FindFirstChild("Courts")
+    if courtsFolder then
+        for _, c in ipairs(courtsFolder:GetChildren()) do
+            if c:FindFirstChild("_CourtPlayers") and c:FindFirstChild("_CourtSettings") then
+                table.insert(list, c)
+            end
+        end
+    end
+    Spectate.Courts = list
+end
+
+local function spectateDirect(player)
+    local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    if not hum then return false end
+    local cam = workspace.CurrentCamera
+    cam.CameraType = Enum.CameraType.Custom
+    cam.CameraSubject = hum
+    fallbackSpectating = true
+    return true
+end
+
+local function stopDirect()
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then workspace.CurrentCamera.CameraSubject = hum end
+    fallbackSpectating = false
+end
+
+local function stopSpectating()
+    if fallbackSpectating then
+        stopDirect()
+    else
+        pcall(function() Spectate:Stop() end)
+    end
+end
+
+-- returns true on success, plus "court" or "fallback" so you know which was used
+local function spectatePlayer(player, notify)
+    -- stop whatever we were doing before
+    stopSpectating()
+
+    refreshCourts()
+    local ok, found, court = pcall(Spectate.GetPlayersCourt, Spectate, player)
+
+    if ok and found and court then
+        Spectate:SetToCourt(court)
+        Spectate:Start()
+        return true, "court"
+    end
+
+    -- fallback
+    if game:IsLoaded() then
+        zolar:Notification({
+                                        Name = "Spectating Fallback",
+                                        Description = "Player is not in a court, using fallback spectate.",
+                                        Icon = "triangle-alert",
+                                        Duration = 4
+                                    })
+    end
+
+    if spectateDirect(player) then
+        return true, "fallback"
+    end
+
+    return false, "none"
+end
+
 -- ============================================================
 -- UI
 -- ============================================================
 do
-    local zolar = loadstring(game:HttpGet("https://raw.githubusercontent.com/wimazawa-eng/ap/refs/heads/main/Testing.lua.txt"))()
 
     local window = zolar:Window({
         Name = "Aural Hub v1.0",
@@ -5333,6 +5406,63 @@ otherVisSec:Slider({
     local autoSec = utilitySub:Section({ Name = "Auto Queue", Side = 1 })
     local travelingSec = utilitySub:Section({ Name = "Traveling", Side = 1 })
     local RepSec = utilitySub:Section({ Name = "Calculation", Side = 1 })
+    local specSec = utilitySub:Section({ Name = "Spectating", Side = 1 })
+
+    local specDropdown = specSec:Dropdown({
+    Name = "Select player",
+    Items = getInGamePlayerNames(),
+    Default = "None",
+    Flag = "spectate_player",
+    Callback = function(v) specTarget = v end
+})
+
+specSec:Button({
+    Name = "Refresh list",
+    Callback = function()
+        pcall(function() specDropdown:Refresh(getInGamePlayerNames()) end)
+    end
+})
+
+specSec:Button({
+    Name = "Spectate",
+    Callback = function()
+        local plr = Players:FindFirstChild(specTarget)
+        if not plr or plr == LocalPlayer then
+            zolar:Notification({
+                Name = "Spectate",
+                Description = "Select a valid player first",
+                Icon = "triangle-alert",
+                Duration = 3
+            })
+            return
+        end
+
+        local ok, mode = spectatePlayer(plr, function(msg)
+            zolar:Notification({
+                Name = "Spectate",
+                Description = msg,
+                Icon = "eye",
+                Duration = 3
+            })
+        end)
+
+        if not ok then
+            zolar:Notification({
+                Name = "Spectate",
+                Description = "Couldn't spectate: player has no character",
+                Icon = "triangle-alert",
+                Duration = 3
+            })
+        end
+    end
+})
+
+specSec:Button({
+    Name = "Stop spectating",
+    Callback = function()
+        stopSpectating()
+    end
+})
 
     RepSec:Toggle({
         Name = "Auto calculate rep",
