@@ -288,11 +288,30 @@ end
 
 local J = Janitor.new()
 getgenv().__aural_janitor = J
-J:AutoTrack()
 
 local zolar = loadstring(game:HttpGet("https://raw.githubusercontent.com/wimazawa-eng/ap/refs/heads/main/Testing.lua.txt"))()
 
-local hookfunction = oth.hook or hookfunction
+-- Wait for auth (oth) to be fully initialized before touching any game functions.
+-- Testing.lua sets getgenv().oth asynchronously; polling here prevents the script
+-- from reaching hookfunction / cloneref / remote calls before auth hooks are in place.
+do
+    local elapsed = 0
+    local timeout = 10
+    while not (getgenv().oth and type(getgenv().oth.hook) == "function") do
+        task.wait(0.05)
+        elapsed = elapsed + 0.05
+        if elapsed >= timeout then
+            warn("[AuralHub] Auth timed out — oth.hook never became available. Aborting.")
+            return
+        end
+    end
+end
+
+-- AutoTrack installs hooks on Instance.new / task.spawn / task.delay / task.defer.
+-- Must come AFTER oth is ready so we don't double-hook in the wrong order.
+J:AutoTrack()
+
+local hookfunction = getgenv().oth.hook or hookfunction
 
 local Players = cloneref(game:GetService("Players"))
 local LocalPlayer = Players.LocalPlayer
