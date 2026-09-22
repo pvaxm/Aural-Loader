@@ -338,7 +338,8 @@ getgenv().Settings = {
         HideOwnNameplate = false,
         CustomName = false, CustomNameText = "",
         CustomRecord = false, CustomRecordText = "", -- yabadabaabdoooooo
-        CustomTitle = false, CustomTitleText = "",
+        CustomTitle = false, CustomTitleText = "", CustomRank = false,
+        CustomRankChoice = "None",
         HoopDistance = false,-- this was extreamly easy to make 
         HoopDistanceColor = "White",
         HoopDistanceTransparency = 0.6,
@@ -368,6 +369,21 @@ getgenv().Settings = {
         LastCopiedUserId = nil,
         LastCopiedName = nil
     }
+}
+
+local rankelo = {
+    Rookie = 0,
+    Veteran = 100,
+    Elite = 300,
+    Pro = 650,
+    ["All-star"] = 1150,
+    Superstar = 1800,
+    Phenom = 2550,
+    Legend = 3350,
+    Mamba = 4100,
+    HoF = 10000,
+    ["G.O.A.T"] = 20000,
+    Aura = 30000
 }
 
 local s = getgenv().Settings
@@ -686,6 +702,46 @@ Moderators = {
     "izzran","wistfulmikk","Bibliogical","aepione","kyraizo",
     "ar1sxm","westline60s","Iukejdjd","Ninja215215"
 }
+
+local rankings = require(game:GetService("ReplicatedStorage").Util.Rankings)
+
+local function applycustomrank()
+    if not s.Visuals.CustomRank then
+        return
+    end
+
+    local elo = LocalPlayer:GetAttribute("ELO")
+    if typeof(elo) ~= "number" then
+        return
+    end
+
+    local character = LocalPlayer.Character
+    if not character then
+        return
+    end
+
+    local rootpart = character:FindFirstChild("HumanoidRootPart")
+    if not rootpart then
+        return
+    end
+
+    local nametag = rootpart:FindFirstChild("NameTag")
+    if not nametag then
+        return
+    end
+
+    local mainframe = nametag:FindFirstChild("MainFrame")
+    if not mainframe then
+        return
+    end
+
+    local rankicon = mainframe:FindFirstChild("RankIcon")
+    if not rankicon or not rankicon:IsA("ImageLabel") then
+        return
+    end
+
+    rankicon.Image = rankings.getRankImageFromELO(elo)
+end
 
 local Client = LocalPlayer
 local Effects, EffectNames = {}, {}
@@ -5400,6 +5456,48 @@ otherVisSec:Slider({
             applyOwnNameplate()
         end
     })
+
+    nameplateSec:Toggle({
+    Name = "Custom rank",
+    Default = s.Visuals.CustomRank,
+    Flag = "vis_customrank",
+    Callback = function(v)
+        s.Visuals.CustomRank = v
+
+        if v then
+            LocalPlayer:SetAttribute("ELO", rankelo[s.Visuals.CustomRankChoice or "Rookie"])
+            applycustomrank()
+        end
+    end
+})
+
+nameplateSec:Dropdown({
+    Name = "Custom rank choice",
+    Items = {
+        "Rookie",
+        "Veteran",
+        "Elite",
+        "Pro",
+        "All-star",
+        "Superstar",
+        "Phenom",
+        "Legend",
+        "Mamba",
+        "HoF",
+        "G.O.A.T",
+        "Aura"
+    },
+    Default = s.Visuals.CustomRankChoice or "Rookie",
+    Flag = "vis_customrankchoice",
+    Callback = function(v)
+        s.Visuals.CustomRankChoice = v
+
+        if s.Visuals.CustomRank then
+            LocalPlayer:SetAttribute("ELO", rankelo[v])
+            applycustomrank()
+        end
+    end
+})
 
     local utilityTab = window:Tab({ Name = "Utility", Icon = "list" })
     local utilitySub = utilityTab:SubTab({ Name = "Utility", Icon = "list" })
