@@ -1,4 +1,4 @@
-wait(5)
+--wait(5)
 getgenv().aural = true
 
 local Janitor = (function()
@@ -292,7 +292,7 @@ J:AutoTrack()
 
 local zolar = loadstring(game:HttpGet("https://raw.githubusercontent.com/wimazawa-eng/ap/refs/heads/main/Testing.lua.txt"))()
 
-local hookfunction = oth.hook or hookfunction
+local hookfunction = oth and oth.hook or hookfunction
 
 local Players = cloneref(game:GetService("Players"))
 local LocalPlayer = Players.LocalPlayer
