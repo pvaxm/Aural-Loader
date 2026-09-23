@@ -1,0 +1,964 @@
+local ModernV2 = loadstring(game:HttpGet("https://robloxui.vercel.app/"))()
+
+local Players           = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService        = game:GetService("RunService")
+local Workspace         = game:GetService("Workspace")
+
+local LP = Players.LocalPlayer
+
+ModernV2:AddTheme({
+    Name        = "MidnightBlue",
+    Accent      = Color3.fromRGB(64, 140, 255),
+    Background  = Color3.fromRGB(12, 16, 24),
+    Surface     = Color3.fromRGB(20, 27, 41),
+    Outline     = Color3.fromRGB(40, 70, 120),
+    Text        = Color3.fromRGB(220, 232, 255),
+    Placeholder = Color3.fromRGB(120, 145, 185),
+    Button      = Color3.fromRGB(40, 90, 170),
+    Icon        = Color3.fromRGB(140, 180, 255),
+    TabBackground = Color3.fromRGB(18, 24, 36),
+    TabText       = Color3.fromRGB(200, 215, 240),
+    TabTextActive = Color3.fromRGB(255, 255, 255),
+    TabIcon       = Color3.fromRGB(120, 150, 200),
+    TabIconActive = Color3.fromRGB(64, 140, 255),
+    ToggleOff      = Color3.fromRGB(26, 34, 50),
+    ToggleBar      = Color3.fromRGB(220, 235, 255),
+    CheckboxIcon   = Color3.fromRGB(255, 255, 255),
+    CheckboxBorder = Color3.fromRGB(64, 140, 255),
+    SliderTrack = Color3.fromRGB(24, 34, 50),
+    SliderThumb = Color3.fromRGB(150, 190, 255),
+    DropdownBackground = Color3.fromRGB(18, 24, 36),
+    DropdownBorder     = Color3.fromRGB(64, 140, 255),
+    SectionBox           = Color3.fromRGB(150, 190, 255),
+    SectionBoxBorder     = Color3.fromRGB(64, 140, 255),
+    SectionBoxBackground = Color3.fromRGB(16, 22, 34),
+    SearchBarBackground = Color3.fromRGB(18, 24, 36),
+    SearchBarBorder     = Color3.fromRGB(64, 140, 255),
+    NotificationBackground = Color3.fromRGB(16, 22, 36),
+    NotificationBorder     = Color3.fromRGB(64, 140, 255),
+    NotificationTitle      = Color3.fromRGB(255, 255, 255),
+    NotificationContent    = Color3.fromRGB(200, 215, 240),
+    Tooltip     = Color3.fromRGB(26, 36, 54),
+    TooltipText = Color3.fromRGB(230, 240, 255),
+})
+
+if not ReplicatedStorage:FindFirstChild("Animations") then
+    ReplicatedStorage:WaitForChild("Animations", 15)
+end
+local EmoteFolder = ReplicatedStorage:FindFirstChild("Animations")
+    and ReplicatedStorage.Animations:FindFirstChild("Emotes")
+local AuraFolder = ReplicatedStorage:FindFirstChild("AuraAssets")
+local SFXFolder  = ReplicatedStorage:FindFirstChild("SFX")
+
+local Window = ModernV2:Window({
+    Title   = "Aural FIAS",
+    Content = "Premium",
+    Logo    = "rbxassetid://105577669304412",
+    Color   = "MidnightBlue",
+    Size    = UDim2.fromOffset(560, 400),
+    MinSize = UDim2.fromOffset(480, 340),
+    MaxSize = UDim2.fromOffset(760, 560),
+    Resizable = true,
+    Keybind = "RightControl",
+    Config  = { ConfigFolder = "AuralHubFIAS", AutoSave = true, AutoLoad = true },
+    Silent  = true,
+})
+
+pcall(function()
+    Window:Notify({
+        Title    = "Aural Hub FIAS Premium",
+        Content  = "Loaded. RightControl to toggle.",
+        Icon     = "lucide:check",
+        Duration = 5,
+        Silent   = true,
+    })
+end)
+
+local BASE = { forward = 2.75, down = 2.50, widen = 3.00 }
+local WEIGHT = { forward = 1.00, down = 2.00, widen = 2.00 }
+local STRIKE_PARTS = { RightHand = true, LeftHand = true }
+
+local State = {
+    HitboxEnabled = false,
+    Mult          = 1.0,
+    Visualizer    = false,
+    VisColor      = Color3.fromRGB(255, 60, 60),
+    VisTrans      = 0.5,
+    VisRadius     = 0.18,
+    VisGhost      = true,
+
+    SoundReplacer = false,
+    SoundOverrides = {},
+    SoundLog       = {},
+
+    TrackerEnabled = false,
+    TrackerRange   = 200,
+    TrackerColor   = Color3.fromRGB(80, 200, 255),
+
+    SelectedEmote = nil,
+    LoopEmote     = true,
+
+    SelectedAura  = nil,
+    AuraAutoRespawn = true,
+
+    AntiAFK       = true,
+    AntiStun      = false,
+}
+
+local connections     = {}
+local activeTrack     = nil
+local auraParticles   = {}
+local visParts        = {}
+local visGhosts       = {}
+local trackerGuis     = {}
+local registry        = {}
+local hbConn
+local charConn
+local stunConns       = {}
+
+local function silentNotify(tbl)
+    pcall(function()
+        tbl.Silent = true
+        Window:Notify(tbl)
+    end)
+end
+
+local function disconnectAll(tbl)
+    for i = #tbl, 1, -1 do
+        pcall(function() tbl[i]:Disconnect() end)
+        tbl[i] = nil
+    end
+end
+
+local function getHumanoid(char)
+    return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+local function getAnimator(hum)
+    return hum and hum:FindFirstChildOfClass("Animator")
+end
+
+local function scaled(base, weight)
+    local m = State.Mult
+    if m <= 1.0 then
+        return base * m
+    end
+    return base * (1 + (m - 1) * weight)
+end
+
+local function fwd()   return scaled(BASE.forward, WEIGHT.forward) end
+local function down()  return scaled(BASE.down,    WEIGHT.down)    end
+local function widen() return scaled(BASE.widen,   WEIGHT.widen)   end
+
+local function shouldScale(att)
+    local parent = att.Parent
+    if not parent then return false end
+    return STRIKE_PARTS[parent.Name] == true
+end
+
+local function targetPos(orig)
+    local p = Vector3.new(orig.X, orig.Y, orig.Z)
+    p = p * widen()
+    p = Vector3.new(p.X, p.Y, -p.Z)
+    p = p + Vector3.new(0, -down(), fwd())
+    return p
+end
+
+local function registerAtt(att)
+    if registry[att] then return end
+    registry[att] = { original = att.Position }
+end
+
+local function unregisterAtt(att)
+    local snap = registry[att]
+    if not snap then return end
+    if att.Parent then
+        att.Position = snap.original
+    end
+    registry[att] = nil
+end
+
+local function scanCharacter(char)
+    if not char then return end
+    for _, d in ipairs(char:GetDescendants()) do
+        if d:IsA("Attachment") and d.Name == "DmgPoint" and shouldScale(d) then
+            registerAtt(d)
+        end
+    end
+end
+
+local function tick()
+    for att, snap in pairs(registry) do
+        if not att.Parent then
+            registry[att] = nil
+        else
+            local want = targetPos(snap.original)
+            if (att.Position - want).Magnitude > 0.001 then
+                att.Position = want
+            end
+        end
+    end
+end
+
+local function startHitbox()
+    if State.HitboxEnabled then return end
+    State.HitboxEnabled = true
+    scanCharacter(LP.Character)
+    charConn = LP.CharacterAdded:Connect(function(char)
+        task.wait(0.5)
+        if State.HitboxEnabled then
+            scanCharacter(char)
+        end
+    end)
+    table.insert(connections, charConn)
+    hbConn = RunService.RenderStepped:Connect(tick)
+    table.insert(connections, hbConn)
+end
+
+local function stopHitbox()
+    if not State.HitboxEnabled then return end
+    State.HitboxEnabled = false
+    disconnectAll(connections)
+    for att in pairs(registry) do
+        unregisterAtt(att)
+    end
+    registry = {}
+end
+
+local VIS_LABEL = "AuralHub_HitboxVis"
+
+local function clearVisualizer()
+    for _, p in ipairs(visParts) do
+        if p then pcall(function() p:Destroy() end) end
+    end
+    for _, p in ipairs(visGhosts) do
+        if p then pcall(function() p:Destroy() end) end
+    end
+    visParts = {}
+    visGhosts = {}
+end
+
+local function updateVisualizer()
+    if not State.Visualizer then
+        if #visParts > 0 or #visGhosts > 0 then
+            clearVisualizer()
+        end
+        return
+    end
+
+    local char = LP.Character
+    if not char then
+        if #visParts > 0 or #visGhosts > 0 then clearVisualizer() end
+        return
+    end
+
+    for _, p in ipairs(visParts) do
+        if p then pcall(function() p:Destroy() end) end
+    end
+    for _, p in ipairs(visGhosts) do
+        if p then pcall(function() p:Destroy() end) end
+    end
+    visParts = {}
+    visGhosts = {}
+
+    local radius = State.VisRadius
+
+    for att, snap in pairs(registry) do
+        if att.Parent then
+            local p = Instance.new("Part")
+            p.Name = VIS_LABEL
+            p.Anchored = true
+            p.CanCollide = false
+            p.CanQuery = false
+            p.CanTouch = false
+            p.Material = Enum.Material.Neon
+            p.Shape = Enum.PartType.Ball
+            p.Size = Vector3.new(radius, radius, radius)
+            p.Color = State.VisColor
+            p.Transparency = State.VisTrans
+            p.CFrame = CFrame.new(att.WorldPosition)
+            p.Parent = Workspace
+            table.insert(visParts, p)
+
+            if State.VisGhost then
+                local g = Instance.new("Part")
+                g.Name = VIS_LABEL
+                g.Anchored = true
+                g.CanCollide = false
+                g.CanQuery = false
+                g.CanTouch = false
+                g.Material = Enum.Material.Neon
+                g.Shape = Enum.PartType.Ball
+                g.Size = Vector3.new(radius * 0.55, radius * 0.55, radius * 0.55)
+                g.Color = Color3.fromRGB(255, 255, 255)
+                g.Transparency = 0.75
+                g.CFrame = CFrame.new(att.Parent.CFrame * snap.original)
+                g.Parent = Workspace
+                table.insert(visGhosts, g)
+            end
+        end
+    end
+end
+
+local function buildSoundOverrideMap()
+    State.SoundOverrides = {}
+    if not SFXFolder then return end
+    for _, d in ipairs(SFXFolder:GetDescendants()) do
+        if d:IsA("Sound") then
+            State.SoundOverrides[d.Name] = d.SoundId
+        end
+    end
+end
+buildSoundOverrideMap()
+
+local function maybeOverrideSound(s)
+    if not State.SoundReplacer then return end
+    local newId = State.SoundOverrides[s.Name]
+    if not newId or newId == "" then return end
+    if s.SoundId == newId then return end
+    pcall(function() s.SoundId = newId end)
+end
+
+local function hookSoundWatch(char)
+    if not char then return end
+    char.DescendantAdded:Connect(function(d)
+        if d:IsA("Sound") then
+            table.insert(State.SoundLog, 1, string.format("%s  id=%s", d.Name, tostring(d.SoundId)))
+            if #State.SoundLog > 8 then
+                table.remove(State.SoundLog)
+            end
+            maybeOverrideSound(d)
+        end
+    end)
+end
+
+if LP.Character then hookSoundWatch(LP.Character) end
+LP.CharacterAdded:Connect(hookSoundWatch)
+
+local function clearTracker()
+    for _, g in ipairs(trackerGuis) do
+        pcall(function() g:Destroy() end)
+    end
+    trackerGuis = {}
+end
+
+local function ensureTracker(plr, char)
+    if not char then return nil end
+    local head = char:FindFirstChild("Head")
+    if not head then return nil end
+
+    local bb = head:FindFirstChild("AuralHub_Tracker")
+    if not bb then
+        bb = Instance.new("BillboardGui")
+        bb.Name = "AuralHub_Tracker"
+        bb.Size = UDim2.fromOffset(200, 44)
+        bb.StudsOffsetWorldSpace = Vector3.new(0, 2.8, 0)
+        bb.AlwaysOnTop = true
+        bb.ResetOnSpawn = false
+        bb.Parent = head
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Name = "Text"
+        lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.fromScale(1, 1)
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextScaled = true
+        lbl.TextColor3 = State.TrackerColor
+        lbl.TextStrokeTransparency = 0.4
+        lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        lbl.Text = plr.Name
+        lbl.Parent = bb
+
+        table.insert(trackerGuis, bb)
+    end
+    return bb
+end
+
+local function updateTracker()
+    if not State.TrackerEnabled then
+        if #trackerGuis > 0 then clearTracker() end
+        return
+    end
+
+    local char = LP.Character
+    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP then
+            local c = plr.Character
+            if c and c:FindFirstChild("Head") then
+                local hum = c:FindFirstChildOfClass("Humanoid")
+                local root = c:FindFirstChild("HumanoidRootPart")
+                if hum and root and myRoot then
+                    local dist = (root.Position - myRoot.Position).Magnitude
+                    if dist <= State.TrackerRange then
+                        local bb = ensureTracker(plr, c)
+                        if bb then
+                            local lbl = bb:FindFirstChild("Text")
+                            if lbl then
+                                lbl.TextColor3 = State.TrackerColor
+                                lbl.Text = string.format("%s\n%.0f hp  ·  %.0f studs",
+                                    plr.Name,
+                                    hum.Health or 0,
+                                    dist)
+                            end
+                        end
+                    else
+                        local existing = c.Head:FindFirstChild("AuralHub_Tracker")
+                        if existing then existing:Destroy() end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function stopCurrentEmote()
+    if activeTrack then
+        pcall(function() activeTrack:Stop(0.15) end)
+        activeTrack = nil
+    end
+end
+
+local function playAnimationId(id, looped)
+    local char = LP.Character
+    local hum  = getHumanoid(char)
+    local animator = getAnimator(hum)
+    if not animator then return false end
+    stopCurrentEmote()
+    local anim = Instance.new("Animation")
+    anim.AnimationId = id
+    local ok, track = pcall(function()
+        return animator:LoadAnimation(anim)
+    end)
+    if not ok or not track then return false end
+    track.Priority = Enum.AnimationPriority.Action
+    track.Looped   = looped ~= false
+    track:Play(0.15)
+    activeTrack = track
+    return true
+end
+
+local function playNamedEmote(name)
+    if not EmoteFolder then return false end
+    local folder = EmoteFolder:FindFirstChild(name)
+    if not folder then return false end
+    local main = folder:FindFirstChild("Main")
+    if not main then return false end
+    return playAnimationId(main.AnimationId, State.LoopEmote)
+end
+
+local emoteNames = {}
+if EmoteFolder then
+    for _, child in ipairs(EmoteFolder:GetChildren()) do
+        if child:IsA("Folder") then
+            table.insert(emoteNames, child.Name)
+        end
+    end
+    table.sort(emoteNames)
+end
+
+local function clearAura()
+    for _, p in ipairs(auraParticles) do
+        pcall(function() p:Destroy() end)
+    end
+    auraParticles = {}
+end
+
+local function applyAura(auraName)
+    clearAura()
+    if not AuraFolder then return false end
+    local aura = AuraFolder:FindFirstChild(auraName)
+    if not aura then return false end
+    local char = LP.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    for _, partFolder in ipairs(aura:GetChildren()) do
+        if partFolder:IsA("Folder") then
+            local target = char:FindFirstChild(partFolder.Name) or hrp
+            if target then
+                for _, emitter in ipairs(partFolder:GetChildren()) do
+                    if emitter:IsA("ParticleEmitter") then
+                        local clone = emitter:Clone()
+                        clone.Enabled = true
+                        clone.Parent = target
+                        table.insert(auraParticles, clone)
+                    end
+                end
+            end
+        end
+    end
+    return true
+end
+
+local auraNames = {}
+if AuraFolder then
+    for _, child in ipairs(AuraFolder:GetChildren()) do
+        if child:IsA("Folder") then
+            table.insert(auraNames, child.Name)
+        end
+    end
+    table.sort(auraNames)
+end
+
+local function startAntiAFK()
+    if not State.AntiAFK then return end
+    pcall(function()
+        local vu = game:GetService("VirtualUser")
+        LP.Idled:Connect(function()
+            vu:CaptureController()
+            vu:ClickButton2(Vector2.new())
+        end)
+    end)
+end
+startAntiAFK()
+
+local function attachAntiStun(char)
+    local hum = getHumanoid(char)
+    if not hum then return end
+    local conn = hum.StateChanged:Connect(function(_, new)
+        if new == Enum.HumanoidStateType.Ragdoll then
+            pcall(function()
+                hum:ChangeState(Enum.HumanoidStateType.Running)
+            end)
+        end
+    end)
+    table.insert(stunConns, conn)
+end
+
+local function startAntiStun()
+    if not State.AntiStun then return end
+    if LP.Character then attachAntiStun(LP.Character) end
+    local c = LP.CharacterAdded:Connect(attachAntiStun)
+    table.insert(stunConns, c)
+end
+
+local function stopAntiStun()
+    disconnectAll(stunConns)
+end
+
+local HitboxTab = Window:AddTab({ Name = "Hitbox", Icon = "lucide:crosshair" })
+local HB = HitboxTab:AddSection({ Name = "HITBOX EXTENDER", Position = "Center" })
+
+HB:AddParagraph({
+    Name = "Extender",
+    Content = "Slider controls how far your punches reach. Default is 1.00x. Max is 1.10x.",
+})
+
+HB:AddToggle({
+    Name = "Enable Extender",
+    Default = false,
+    Flag = "HB_Enabled",
+    Callback = function(on)
+        if on then
+            startHitbox()
+            silentNotify({ Title = "Hitbox", Content = "Enabled.", Duration = 3 })
+        else
+            stopHitbox()
+            silentNotify({ Title = "Hitbox", Content = "Disabled.", Duration = 3 })
+        end
+    end,
+})
+
+HB:AddSlider({
+    Name = "Reach Size",
+    Default = 1.0,
+    Min = 0.5,
+    Max = 1.10,
+    Rounding = 2,
+    Type = "x",
+    Flag = "HB_Mult",
+    Tooltip = "0.50x small, 1.00x default, 1.10x max.",
+    Callback = function(v)
+        State.Mult = v
+    end,
+})
+
+HB:AddButton({
+    Name = "Reset to 1.00x",
+    Callback = function()
+        State.Mult = 1.0
+        silentNotify({ Title = "Hitbox", Content = "Reset.", Duration = 2 })
+    end,
+})
+
+HB:AddButton({
+    Name = "Restore Original Hitboxes",
+    Callback = function()
+        for att in pairs(registry) do
+            unregisterAtt(att)
+        end
+        registry = {}
+        silentNotify({ Title = "Hitbox", Content = "Restored.", Duration = 2 })
+    end,
+})
+
+local VisSection = HitboxTab:AddSection({ Name = "VISUALIZER", Position = "Center" })
+
+VisSection:AddParagraph({
+    Name = "Visualizer",
+    Content = "Colored dots show where your hitboxes are now. Small white dots show where they started.",
+})
+
+VisSection:AddToggle({
+    Name = "Show Hitbox Dots",
+    Default = false,
+    Flag = "VIS_Enabled",
+    Callback = function(v)
+        State.Visualizer = v
+        if not v then clearVisualizer() end
+    end,
+})
+
+VisSection:AddColorPicker({
+    Name = "Dot Color",
+    Default = Color3.fromRGB(255, 60, 60),
+    Flag = "VIS_Color",
+    Callback = function(c) State.VisColor = c end,
+})
+
+VisSection:AddSlider({
+    Name = "Dot Visibility",
+    Default = 0.5,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Flag = "VIS_Trans",
+    Tooltip = "0 solid, 1 invisible.",
+    Callback = function(v) State.VisTrans = v end,
+})
+
+VisSection:AddSlider({
+    Name = "Dot Size",
+    Default = 0.18,
+    Min = 0.05,
+    Max = 1.0,
+    Rounding = 2,
+    Type = " studs",
+    Flag = "VIS_Radius",
+    Callback = function(v) State.VisRadius = v end,
+})
+
+VisSection:AddToggle({
+    Name = "Show Start Position Dots",
+    Default = true,
+    Flag = "VIS_Ghost",
+    Tooltip = "White dots show where hitboxes were before extending.",
+    Callback = function(v) State.VisGhost = v end,
+})
+
+local SoundTab = Window:AddTab({ Name = "Sounds", Icon = "lucide:volume-2" })
+local SN = SoundTab:AddSection({ Name = "SOUND REPLACER", Position = "Center" })
+
+SN:AddParagraph({
+    Name = "Sound Replacer",
+    Content = "Turn on, then paste new asset IDs for any sound. Leave blank to keep the original.",
+})
+
+SN:AddToggle({
+    Name = "Enable Sound Replacer",
+    Default = false,
+    Flag = "SN_Enabled",
+    Callback = function(v)
+        State.SoundReplacer = v
+        silentNotify({ Title = "Sounds", Content = v and "On." or "Off.", Duration = 2 })
+    end,
+})
+
+SN:AddDivider({ Text = "Quick swaps" })
+
+local quickNames = {
+    "Punch", "HardPunch", "GutPunch", "Impact",
+    "Blood_Hit", "HardKick", "BoxingGloveHit", "Shove",
+}
+
+for _, sname in ipairs(quickNames) do
+    SN:AddInput({
+        Name = sname,
+        Default = "",
+        Placeholder = "new asset id",
+        Flag = "SN_" .. sname,
+        Callback = function(v)
+            if v == "" then
+                if SFXFolder then
+                    local orig = SFXFolder:FindFirstChild(sname)
+                    if orig and orig:IsA("Sound") then
+                        State.SoundOverrides[sname] = orig.SoundId
+                    end
+                end
+            else
+                local id = v
+                if tonumber(v) then
+                    id = "rbxassetid://" .. v
+                end
+                State.SoundOverrides[sname] = id
+            end
+        end,
+    })
+end
+
+SN:AddDivider({ Text = "Recent sounds" })
+
+SN:AddButton({
+    Name = "Show Last 8 Sounds Played",
+    Callback = function()
+        if #State.SoundLog == 0 then
+            silentNotify({ Title = "Sounds", Content = "Nothing logged yet.", Duration = 2 })
+        else
+            silentNotify({ Title = "Recent", Content = table.concat(State.SoundLog, "\n"), Duration = 6 })
+        end
+    end,
+})
+
+SN:AddButton({
+    Name = "Clear Recent Sounds",
+    Callback = function()
+        State.SoundLog = {}
+        silentNotify({ Title = "Sounds", Content = "Cleared.", Duration = 2 })
+    end,
+})
+
+local TrackerTab = Window:AddTab({ Name = "Tracker", Icon = "lucide:eye" })
+local TK = TrackerTab:AddSection({ Name = "PLAYER TRACKER", Position = "Center" })
+
+TK:AddParagraph({
+    Name = "Player Labels",
+    Content = "Shows a label over each nearby player with their name, health, and distance from you.",
+})
+
+TK:AddToggle({
+    Name = "Show Player Labels",
+    Default = false,
+    Flag = "TK_Enabled",
+    Callback = function(v)
+        State.TrackerEnabled = v
+        if not v then clearTracker() end
+    end,
+})
+
+TK:AddSlider({
+    Name = "Max Distance",
+    Default = 200,
+    Min = 20,
+    Max = 500,
+    Rounding = 0,
+    Type = " studs",
+    Flag = "TK_Range",
+    Tooltip = "Hide players further than this.",
+    Callback = function(v) State.TrackerRange = v end,
+})
+
+TK:AddColorPicker({
+    Name = "Label Color",
+    Default = Color3.fromRGB(80, 200, 255),
+    Flag = "TK_Color",
+    Callback = function(c) State.TrackerColor = c end,
+})
+
+local EmoteTab = Window:AddTab({ Name = "Emotes", Icon = "lucide:person-standing" })
+local EM = EmoteTab:AddSection({ Name = "EMOTE CHANGER", Position = "Center" })
+
+EM:AddParagraph({
+    Name = "Emotes",
+    Content = "Pick a game emote or paste any Roblox animation ID to play it on your character.",
+})
+
+EM:AddDropdown({
+    Name = "Game Emote",
+    Values = (#emoteNames > 0) and emoteNames or { "(none found)" },
+    Default = (#emoteNames > 0) and emoteNames[1] or nil,
+    Search = true,
+    Flag = "EM_Selected",
+    Callback = function(v) State.SelectedEmote = v end,
+})
+
+EM:AddToggle({
+    Name = "Loop Emote",
+    Default = true,
+    Flag = "EM_Loop",
+    Tooltip = "On loops the emote. Off plays once.",
+    Callback = function(v) State.LoopEmote = v end,
+})
+
+EM:AddButton({
+    Name = "Play Selected Emote",
+    Callback = function()
+        if not State.SelectedEmote then
+            silentNotify({ Title = "Emotes", Content = "Pick an emote first.", Duration = 3 })
+            return
+        end
+        if playNamedEmote(State.SelectedEmote) then
+            silentNotify({ Title = "Emotes", Content = "Playing: " .. State.SelectedEmote, Duration = 2 })
+        end
+    end,
+})
+
+EM:AddButton({
+    Name = "Stop Emote",
+    Callback = function()
+        stopCurrentEmote()
+        silentNotify({ Title = "Emotes", Content = "Stopped.", Duration = 2 })
+    end,
+})
+
+EM:AddDivider({ Text = "Custom Animation ID" })
+
+local customInput
+customInput = EM:AddInput({
+    Name = "Animation ID",
+    Default = "",
+    Placeholder = "rbxassetid://123456789",
+    Flag = "EM_CustomId",
+    Callback = function(v) end,
+})
+
+EM:AddButton({
+    Name = "Play Custom Animation ID",
+    Callback = function()
+        local raw = customInput and customInput:GetValue() or ""
+        if raw == "" then
+            silentNotify({ Title = "Emotes", Content = "Enter an ID first.", Duration = 3 })
+            return
+        end
+        local id = raw
+        if tonumber(raw) then id = "rbxassetid://" .. raw end
+        if playAnimationId(id, State.LoopEmote) then
+            silentNotify({ Title = "Emotes", Content = "Playing: " .. id, Duration = 2 })
+        else
+            silentNotify({ Title = "Emotes", Content = "Failed.", Duration = 3 })
+        end
+    end,
+})
+
+EM:AddDivider({ Text = "Quick Emotes" })
+
+for _, name in ipairs({ "Slatt", "UZI Dance", "L Dance", "T Bag", "Muscle Flex", "Windmill" }) do
+    EM:AddButton({
+        Name = name,
+        Callback = function()
+            if playNamedEmote(name) then
+                silentNotify({ Title = "Emotes", Content = "Playing: " .. name, Duration = 2 })
+            end
+        end
+    })
+end
+
+local AuraTab = Window:AddTab({ Name = "Auras", Icon = "lucide:sparkles" })
+local AU = AuraTab:AddSection({ Name = "AURA SWITCHER", Position = "Center" })
+
+AU:AddParagraph({
+    Name = "Auras",
+    Content = "Pick an aura and apply it. Particles attach to your character until you clear it.",
+})
+
+AU:AddDropdown({
+    Name = "Aura",
+    Values = (#auraNames > 0) and auraNames or { "(none found)" },
+    Default = (#auraNames > 0) and auraNames[1] or nil,
+    Search = true,
+    Flag = "AU_Selected",
+    Callback = function(v) State.SelectedAura = v end,
+})
+
+AU:AddButton({
+    Name = "Apply Aura",
+    Callback = function()
+        if not State.SelectedAura then
+            silentNotify({ Title = "Auras", Content = "Pick an aura first.", Duration = 3 })
+            return
+        end
+        if applyAura(State.SelectedAura) then
+            silentNotify({ Title = "Auras", Content = "Applied: " .. State.SelectedAura, Duration = 2 })
+        end
+    end,
+})
+
+AU:AddButton({
+    Name = "Clear Aura",
+    Callback = function()
+        clearAura()
+        silentNotify({ Title = "Auras", Content = "Cleared.", Duration = 2 })
+    end,
+})
+
+AU:AddToggle({
+    Name = "Reapply Aura on Respawn",
+    Default = true,
+    Flag = "AU_Respawn",
+    Tooltip = "On brings your aura back after respawning.",
+    Callback = function(v) State.AuraAutoRespawn = v end,
+})
+
+local MiscTab = Window:AddTab({ Name = "Misc", Icon = "lucide:settings" })
+local MS = MiscTab:AddSection({ Name = "GENERAL", Position = "Center" })
+
+MS:AddToggle({
+    Name = "Anti-AFK",
+    Default = true,
+    Flag = "MS_AntiAFK",
+    Tooltip = "Keeps you in the game when idle.",
+    Callback = function(v)
+        State.AntiAFK = v
+    end,
+})
+
+MS:AddDivider({ Text = "Anti-Stun" })
+
+MS:AddParagraph({
+    Name = "Anti-Stun",
+    Content = "Pushes your character out of ragdoll when knocked down. Server may keep you stunned anyway.",
+})
+
+MS:AddToggle({
+    Name = "Enable Anti-Stun",
+    Default = false,
+    Flag = "MS_AntiStun",
+    Tooltip = "Stand back up the moment you're knocked down.",
+    Callback = function(v)
+        State.AntiStun = v
+        if v then
+            startAntiStun()
+        else
+            stopAntiStun()
+        end
+    end,
+})
+
+RunService.RenderStepped:Connect(function()
+    if State.Visualizer then
+        updateVisualizer()
+    end
+    if State.TrackerEnabled then
+        updateTracker()
+    end
+end)
+
+LP.CharacterAdded:Connect(function(char)
+    stopCurrentEmote()
+    clearVisualizer()
+    clearTracker()
+    if State.HitboxEnabled then
+        task.wait(0.6)
+        scanCharacter(char)
+    end
+    if State.AuraAutoRespawn and State.SelectedAura then
+        task.wait(0.8)
+        pcall(applyAura, State.SelectedAura)
+    end
+    hookSoundWatch(char)
+    if State.AntiStun then
+        task.wait(0.6)
+        attachAntiStun(char)
+    end
+end)
+
+Window.OnDestroy = function()
+    stopHitbox()
+    stopCurrentEmote()
+    clearAura()
+    clearVisualizer()
+    clearTracker()
+    stopAntiStun()
+    silentNotify({ Title = "Aural Hub FIAS Premium", Content = "Unloaded.", Duration = 3 })
+end
