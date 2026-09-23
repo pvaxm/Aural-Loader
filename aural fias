@@ -1,8 +1,141 @@
-local ModernV2 = loadstring(game:HttpGet("https://robloxui.vercel.app/"))()
+local ok, g = pcall(function() return getgenv() end)
+if ok and type(g) == "table" then
+    pcall(function() g.Delta = nil end)
+    pcall(function() g.DeltaExploit = nil end)
+    pcall(function() g.getrawmetatable = nil end)
+    pcall(function() g.getnamecallmethod = nil end)
+    pcall(function() g.hookfunction = nil end)
+    pcall(function() g.hookmetamethod = nil end)
+    pcall(function() g.getreg = nil end)
+    pcall(function() g.setreadonly = nil end)
+end
+
+pcall(function()
+    local mt = getrawmetatable and getrawmetatable(game)
+    if not mt then return end
+    local old_namecall = mt.__namecall
+    local old_index    = mt.__index
+
+    setreadonly(mt, false)
+
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod and getnamecallmethod() or ""
+        if method == "FireServer" or method == "InvokeServer" then
+            local caller = debug.info and debug.info(2, "s") or ""
+            if caller and caller:find("anti", 1, true) then
+                return nil
+            end
+        end
+        return old_namecall(self, ...)
+    end)
+
+    mt.__index = newcclosure(function(self, key)
+        if key == "AuralHub" or key == "ModernV2" or key == "_AuralInternal" then
+            return nil
+        end
+        return old_index(self, key)
+    end)
+
+    setreadonly(mt, true)
+end)
+
+local real_identify = identifyexecutor
+if type(real_identify) == "function" then
+    pcall(function()
+        identifyexecutor = function()
+            return "Roblox", "1.0.0"
+        end
+    end)
+end
+
+pcall(function()
+    local real_getfenv = getfenv
+    getfenv = function(level)
+        local env = real_getfenv(level)
+        if type(env) == "table" then
+            env.script = nil
+            env.getgenv = nil
+            env.identifyexecutor = nil
+            env.Delta = nil
+        end
+        return env
+    end
+end)
+
+pcall(function()
+    if getscriptbytecode then
+        local real = getscriptbytecode
+        getscriptbytecode = function(s)
+            if s and s.Name and s.Name:find("Aural", 1, true) then
+                return ""
+            end
+            return real(s)
+        end
+    end
+end)
+
+pcall(function()
+    local LogService = game:GetService("LogService")
+
+    LogService.MessageOut:Connect(function(msg, msgType)
+        if msgType ~= Enum.MessageType.MessageError then return end
+        if msg:find("custom_gloop", 1, true) then
+            msg = msg:gsub("custom_gloop", "rbxasset://", 1)
+        end
+    end)
+end)
+
+pcall(function()
+    local rs = game:GetService("RunService")
+    local decoy = Instance.new("Script")
+    decoy.Name = "CoreScript"
+    decoy.Parent = game:GetService("CoreGui")
+    decoy.Disabled = true
+
+    rs.Heartbeat:Connect(function()
+    end)
+end)
+
+local ok2, err = pcall(function() return game:HttpGet("https://robloxui.vercel.app/") end)
+if not ok2 then
+    ok2, err = pcall(function() return game:HttpGet("https://raw.githubusercontent.com/robloxui/robloxui/main/dist.lua") end)
+end
+
+local ModernV2
+do
+    local fn, lerr = loadstring(err)
+    if not fn then
+        error("[Aural] UI loader failed: " .. tostring(lerr))
+    end
+    ModernV2 = fn()
+end
+
+local _wait  = (type(task) == "table" and task.wait)  or wait
+local _spawn = (type(task) == "table" and task.spawn) or spawn
+local _delay = (type(task) == "table" and task.delay) or delay
+
+local RS  = game:GetService("RunService")
+local _step
+do
+    local okbind = pcall(function() _step = RS.RenderStepped end)
+    if not okbind or not _step then
+        _step = RS.Heartbeat
+    end
+end
+
+local ManualValues = {}
+local function bindInput(obj, flag, callback)
+    ManualValues[flag] = ManualValues[flag] or ""
+    local okgv = pcall(function() return obj:GetValue() end)
+    if okgv then
+        return obj
+    end
+    obj.GetValue = function(self) return ManualValues[flag] end
+    return obj
+end
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService        = game:GetService("RunService")
 local Workspace         = game:GetService("Workspace")
 
 local LP = Players.LocalPlayer
@@ -43,13 +176,24 @@ ModernV2:AddTheme({
     TooltipText = Color3.fromRGB(230, 240, 255),
 })
 
-if not ReplicatedStorage:FindFirstChild("Animations") then
-    ReplicatedStorage:WaitForChild("Animations", 15)
+local function waitChild(parent, name, timeout)
+    local t = os.clock()
+    timeout = timeout or 15
+    while os.clock() - t < timeout do
+        local c = parent:FindFirstChild(name)
+        if c then return c end
+        _wait(0.1)
+    end
+    return parent:FindFirstChild(name)
 end
-local EmoteFolder = ReplicatedStorage:FindFirstChild("Animations")
-    and ReplicatedStorage.Animations:FindFirstChild("Emotes")
-local AuraFolder = ReplicatedStorage:FindFirstChild("AuraAssets")
-local SFXFolder  = ReplicatedStorage:FindFirstChild("SFX")
+
+if not ReplicatedStorage:FindFirstChild("Animations") then
+    waitChild(ReplicatedStorage, "Animations", 15)
+end
+local AnimRoot    = ReplicatedStorage:FindFirstChild("Animations")
+local EmoteFolder = AnimRoot and AnimRoot:FindFirstChild("Emotes")
+local AuraFolder  = ReplicatedStorage:FindFirstChild("AuraAssets")
+local SFXFolder   = ReplicatedStorage:FindFirstChild("SFX")
 
 local Window = ModernV2:Window({
     Title   = "Aural FIAS",
@@ -65,63 +209,28 @@ local Window = ModernV2:Window({
     Silent  = true,
 })
 
-pcall(function()
-    Window:Notify({
-        Title    = "Aural Hub FIAS Premium",
-        Content  = "Loaded. RightControl to toggle.",
-        Icon     = "lucide:check",
-        Duration = 5,
-        Silent   = true,
-    })
-end)
-
-local BASE = { forward = 2.75, down = 2.50, widen = 3.00 }
+local BASE   = { forward = 2.75, down = 2.50, widen = 3.00 }
 local WEIGHT = { forward = 1.00, down = 2.00, widen = 2.00 }
 local STRIKE_PARTS = { RightHand = true, LeftHand = true }
 
 local State = {
-    HitboxEnabled = false,
-    Mult          = 1.0,
-    Visualizer    = false,
-    VisColor      = Color3.fromRGB(255, 60, 60),
-    VisTrans      = 0.5,
-    VisRadius     = 0.18,
-    VisGhost      = true,
-
-    SoundReplacer = false,
-    SoundOverrides = {},
-    SoundLog       = {},
-
-    TrackerEnabled = false,
-    TrackerRange   = 200,
-    TrackerColor   = Color3.fromRGB(80, 200, 255),
-
-    SelectedEmote = nil,
-    LoopEmote     = true,
-
-    SelectedAura  = nil,
-    AuraAutoRespawn = true,
-
-    AntiAFK       = true,
-    AntiStun      = false,
+    HitboxEnabled = false, Mult = 1.0,
+    Visualizer = false, VisColor = Color3.fromRGB(255,60,60),
+    VisTrans = 0.5, VisRadius = 0.18, VisGhost = true,
+    SoundReplacer = false, SoundOverrides = {}, SoundLog = {},
+    TrackerEnabled = false, TrackerRange = 200,
+    TrackerColor = Color3.fromRGB(80,200,255),
+    SelectedEmote = nil, LoopEmote = true,
+    SelectedAura = nil, AuraAutoRespawn = true,
+    AntiAFK = true, AntiStun = false,
 }
 
-local connections     = {}
-local activeTrack     = nil
-local auraParticles   = {}
-local visParts        = {}
-local visGhosts       = {}
-local trackerGuis     = {}
-local registry        = {}
-local hbConn
-local charConn
-local stunConns       = {}
+local connections, activeTrack = {}, nil
+local auraParticles, visParts, visGhosts, trackerGuis = {}, {}, {}, {}
+local registry, hbConn, charConn, stunConns = {}, nil, nil, {}
 
 local function silentNotify(tbl)
-    pcall(function()
-        tbl.Silent = true
-        Window:Notify(tbl)
-    end)
+    pcall(function() tbl.Silent = true; Window:Notify(tbl) end)
 end
 
 local function disconnectAll(tbl)
@@ -132,21 +241,30 @@ local function disconnectAll(tbl)
 end
 
 local function getHumanoid(char)
-    return char and char:FindFirstChildOfClass("Humanoid")
+    if not char then return nil end
+    local h = char:FindFirstChildOfClass and char:FindFirstChildOfClass("Humanoid")
+    if h then return h end
+    for _, d in ipairs(char:GetChildren()) do
+        if d:IsA("Humanoid") then return d end
+    end
+    return nil
 end
 
 local function getAnimator(hum)
-    return hum and hum:FindFirstChildOfClass("Animator")
+    if not hum then return nil end
+    local a = hum:FindFirstChildOfClass and hum:FindFirstChildOfClass("Animator")
+    if a then return a end
+    for _, d in ipairs(hum:GetChildren()) do
+        if d:IsA("Animator") then return d end
+    end
+    return nil
 end
 
 local function scaled(base, weight)
     local m = State.Mult
-    if m <= 1.0 then
-        return base * m
-    end
+    if m <= 1.0 then return base * m end
     return base * (1 + (m - 1) * weight)
 end
-
 local function fwd()   return scaled(BASE.forward, WEIGHT.forward) end
 local function down()  return scaled(BASE.down,    WEIGHT.down)    end
 local function widen() return scaled(BASE.widen,   WEIGHT.widen)   end
@@ -173,9 +291,7 @@ end
 local function unregisterAtt(att)
     local snap = registry[att]
     if not snap then return end
-    if att.Parent then
-        att.Position = snap.original
-    end
+    if att.Parent then att.Position = snap.original end
     registry[att] = nil
 end
 
@@ -190,13 +306,10 @@ end
 
 local function tick()
     for att, snap in pairs(registry) do
-        if not att.Parent then
-            registry[att] = nil
+        if not att.Parent then registry[att] = nil
         else
             local want = targetPos(snap.original)
-            if (att.Position - want).Magnitude > 0.001 then
-                att.Position = want
-            end
+            if (att.Position - want).Magnitude > 0.001 then att.Position = want end
         end
     end
 end
@@ -206,13 +319,11 @@ local function startHitbox()
     State.HitboxEnabled = true
     scanCharacter(LP.Character)
     charConn = LP.CharacterAdded:Connect(function(char)
-        task.wait(0.5)
-        if State.HitboxEnabled then
-            scanCharacter(char)
-        end
+        _wait(0.5)
+        if State.HitboxEnabled then scanCharacter(char) end
     end)
     table.insert(connections, charConn)
-    hbConn = RunService.RenderStepped:Connect(tick)
+    hbConn = _step:Connect(tick)
     table.insert(connections, hbConn)
 end
 
@@ -220,50 +331,32 @@ local function stopHitbox()
     if not State.HitboxEnabled then return end
     State.HitboxEnabled = false
     disconnectAll(connections)
-    for att in pairs(registry) do
-        unregisterAtt(att)
-    end
+    for att in pairs(registry) do unregisterAtt(att) end
     registry = {}
 end
 
 local VIS_LABEL = "AuralHub_HitboxVis"
-
 local function clearVisualizer()
-    for _, p in ipairs(visParts) do
-        if p then pcall(function() p:Destroy() end) end
-    end
-    for _, p in ipairs(visGhosts) do
-        if p then pcall(function() p:Destroy() end) end
-    end
-    visParts = {}
-    visGhosts = {}
+    for _, p in ipairs(visParts)  do if p then pcall(function() p:Destroy() end) end end
+    for _, p in ipairs(visGhosts) do if p then pcall(function() p:Destroy() end) end end
+    visParts, visGhosts = {}, {}
 end
 
 local function updateVisualizer()
     if not State.Visualizer then
-        if #visParts > 0 or #visGhosts > 0 then
-            clearVisualizer()
-        end
+        if #visParts > 0 or #visGhosts > 0 then clearVisualizer() end
         return
     end
-
     local char = LP.Character
     if not char then
         if #visParts > 0 or #visGhosts > 0 then clearVisualizer() end
         return
     end
-
-    for _, p in ipairs(visParts) do
-        if p then pcall(function() p:Destroy() end) end
-    end
-    for _, p in ipairs(visGhosts) do
-        if p then pcall(function() p:Destroy() end) end
-    end
-    visParts = {}
-    visGhosts = {}
+    for _, p in ipairs(visParts)  do if p then pcall(function() p:Destroy() end) end end
+    for _, p in ipairs(visGhosts) do if p then pcall(function() p:Destroy() end) end end
+    visParts, visGhosts = {}, {}
 
     local radius = State.VisRadius
-
     for att, snap in pairs(registry) do
         if att.Parent then
             local p = Instance.new("Part")
@@ -290,8 +383,8 @@ local function updateVisualizer()
                 g.CanTouch = false
                 g.Material = Enum.Material.Neon
                 g.Shape = Enum.PartType.Ball
-                g.Size = Vector3.new(radius * 0.55, radius * 0.55, radius * 0.55)
-                g.Color = Color3.fromRGB(255, 255, 255)
+                g.Size = Vector3.new(radius*0.55, radius*0.55, radius*0.55)
+                g.Color = Color3.fromRGB(255,255,255)
                 g.Transparency = 0.75
                 g.CFrame = CFrame.new(att.Parent.CFrame * snap.original)
                 g.Parent = Workspace
@@ -305,9 +398,7 @@ local function buildSoundOverrideMap()
     State.SoundOverrides = {}
     if not SFXFolder then return end
     for _, d in ipairs(SFXFolder:GetDescendants()) do
-        if d:IsA("Sound") then
-            State.SoundOverrides[d.Name] = d.SoundId
-        end
+        if d:IsA("Sound") then State.SoundOverrides[d.Name] = d.SoundId end
     end
 end
 buildSoundOverrideMap()
@@ -325,21 +416,16 @@ local function hookSoundWatch(char)
     char.DescendantAdded:Connect(function(d)
         if d:IsA("Sound") then
             table.insert(State.SoundLog, 1, string.format("%s  id=%s", d.Name, tostring(d.SoundId)))
-            if #State.SoundLog > 8 then
-                table.remove(State.SoundLog)
-            end
+            if #State.SoundLog > 8 then table.remove(State.SoundLog) end
             maybeOverrideSound(d)
         end
     end)
 end
-
 if LP.Character then hookSoundWatch(LP.Character) end
 LP.CharacterAdded:Connect(hookSoundWatch)
 
 local function clearTracker()
-    for _, g in ipairs(trackerGuis) do
-        pcall(function() g:Destroy() end)
-    end
+    for _, g2 in ipairs(trackerGuis) do pcall(function() g2:Destroy() end) end
     trackerGuis = {}
 end
 
@@ -347,7 +433,6 @@ local function ensureTracker(plr, char)
     if not char then return nil end
     local head = char:FindFirstChild("Head")
     if not head then return nil end
-
     local bb = head:FindFirstChild("AuralHub_Tracker")
     if not bb then
         bb = Instance.new("BillboardGui")
@@ -366,10 +451,9 @@ local function ensureTracker(plr, char)
         lbl.TextScaled = true
         lbl.TextColor3 = State.TrackerColor
         lbl.TextStrokeTransparency = 0.4
-        lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        lbl.TextStrokeColor3 = Color3.fromRGB(0,0,0)
         lbl.Text = plr.Name
         lbl.Parent = bb
-
         table.insert(trackerGuis, bb)
     end
     return bb
@@ -380,15 +464,13 @@ local function updateTracker()
         if #trackerGuis > 0 then clearTracker() end
         return
     end
-
     local char = LP.Character
     local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP then
             local c = plr.Character
             if c and c:FindFirstChild("Head") then
-                local hum = c:FindFirstChildOfClass("Humanoid")
+                local hum  = getHumanoid(c)
                 local root = c:FindFirstChild("HumanoidRootPart")
                 if hum and root and myRoot then
                     local dist = (root.Position - myRoot.Position).Magnitude
@@ -399,9 +481,7 @@ local function updateTracker()
                             if lbl then
                                 lbl.TextColor3 = State.TrackerColor
                                 lbl.Text = string.format("%s\n%.0f hp  ·  %.0f studs",
-                                    plr.Name,
-                                    hum.Health or 0,
-                                    dist)
+                                    plr.Name, hum.Health or 0, dist)
                             end
                         end
                     else
@@ -429,10 +509,11 @@ local function playAnimationId(id, looped)
     stopCurrentEmote()
     local anim = Instance.new("Animation")
     anim.AnimationId = id
-    local ok, track = pcall(function()
-        return animator:LoadAnimation(anim)
-    end)
-    if not ok or not track then return false end
+    local ok3, track = pcall(function() return animator:LoadAnimation(anim) end)
+    if not ok3 or not track then
+        ok3, track = pcall(function() return hum:LoadAnimation(anim) end)
+    end
+    if not ok3 or not track then return false end
     track.Priority = Enum.AnimationPriority.Action
     track.Looped   = looped ~= false
     track:Play(0.15)
@@ -452,17 +533,13 @@ end
 local emoteNames = {}
 if EmoteFolder then
     for _, child in ipairs(EmoteFolder:GetChildren()) do
-        if child:IsA("Folder") then
-            table.insert(emoteNames, child.Name)
-        end
+        if child:IsA("Folder") then table.insert(emoteNames, child.Name) end
     end
     table.sort(emoteNames)
 end
 
 local function clearAura()
-    for _, p in ipairs(auraParticles) do
-        pcall(function() p:Destroy() end)
-    end
+    for _, p in ipairs(auraParticles) do pcall(function() p:Destroy() end) end
     auraParticles = {}
 end
 
@@ -495,9 +572,7 @@ end
 local auraNames = {}
 if AuraFolder then
     for _, child in ipairs(AuraFolder:GetChildren()) do
-        if child:IsA("Folder") then
-            table.insert(auraNames, child.Name)
-        end
+        if child:IsA("Folder") then table.insert(auraNames, child.Name) end
     end
     table.sort(auraNames)
 end
@@ -519,9 +594,7 @@ local function attachAntiStun(char)
     if not hum then return end
     local conn = hum.StateChanged:Connect(function(_, new)
         if new == Enum.HumanoidStateType.Ragdoll then
-            pcall(function()
-                hum:ChangeState(Enum.HumanoidStateType.Running)
-            end)
+            pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
         end
     end)
     table.insert(stunConns, conn)
@@ -530,26 +603,18 @@ end
 local function startAntiStun()
     if not State.AntiStun then return end
     if LP.Character then attachAntiStun(LP.Character) end
-    local c = LP.CharacterAdded:Connect(attachAntiStun)
-    table.insert(stunConns, c)
+    table.insert(stunConns, LP.CharacterAdded:Connect(attachAntiStun))
 end
 
-local function stopAntiStun()
-    disconnectAll(stunConns)
-end
+local function stopAntiStun() disconnectAll(stunConns) end
 
 local HitboxTab = Window:AddTab({ Name = "Hitbox", Icon = "lucide:crosshair" })
 local HB = HitboxTab:AddSection({ Name = "HITBOX EXTENDER", Position = "Center" })
 
-HB:AddParagraph({
-    Name = "Extender",
-    Content = "Slider controls how far your punches reach. Default is 1.00x. Max is 1.10x.",
-})
+HB:AddParagraph({ Name = "Extender",
+    Content = "Slider controls how far your punches reach. Default is 1.00x. Max is 1.10x." })
 
-HB:AddToggle({
-    Name = "Enable Extender",
-    Default = false,
-    Flag = "HB_Enabled",
+HB:AddToggle({ Name = "Enable Extender", Default = false, Flag = "HB_Enabled",
     Callback = function(on)
         if on then
             startHitbox()
@@ -558,127 +623,61 @@ HB:AddToggle({
             stopHitbox()
             silentNotify({ Title = "Hitbox", Content = "Disabled.", Duration = 3 })
         end
-    end,
-})
+    end })
 
-HB:AddSlider({
-    Name = "Reach Size",
-    Default = 1.0,
-    Min = 0.5,
-    Max = 1.10,
-    Rounding = 2,
-    Type = "x",
-    Flag = "HB_Mult",
+HB:AddSlider({ Name = "Reach Size", Default = 1.0, Min = 0.5, Max = 1.10,
+    Rounding = 2, Type = "x", Flag = "HB_Mult",
     Tooltip = "0.50x small, 1.00x default, 1.10x max.",
-    Callback = function(v)
-        State.Mult = v
-    end,
-})
+    Callback = function(v) State.Mult = v end })
 
-HB:AddButton({
-    Name = "Reset to 1.00x",
+HB:AddButton({ Name = "Reset to 1.00x",
     Callback = function()
         State.Mult = 1.0
         silentNotify({ Title = "Hitbox", Content = "Reset.", Duration = 2 })
-    end,
-})
+    end })
 
-HB:AddButton({
-    Name = "Restore Original Hitboxes",
+HB:AddButton({ Name = "Restore Original Hitboxes",
     Callback = function()
-        for att in pairs(registry) do
-            unregisterAtt(att)
-        end
+        for att in pairs(registry) do unregisterAtt(att) end
         registry = {}
         silentNotify({ Title = "Hitbox", Content = "Restored.", Duration = 2 })
-    end,
-})
+    end })
 
 local VisSection = HitboxTab:AddSection({ Name = "VISUALIZER", Position = "Center" })
-
-VisSection:AddParagraph({
-    Name = "Visualizer",
-    Content = "Colored dots show where your hitboxes are now. Small white dots show where they started.",
-})
-
-VisSection:AddToggle({
-    Name = "Show Hitbox Dots",
-    Default = false,
-    Flag = "VIS_Enabled",
-    Callback = function(v)
-        State.Visualizer = v
-        if not v then clearVisualizer() end
-    end,
-})
-
-VisSection:AddColorPicker({
-    Name = "Dot Color",
-    Default = Color3.fromRGB(255, 60, 60),
-    Flag = "VIS_Color",
-    Callback = function(c) State.VisColor = c end,
-})
-
-VisSection:AddSlider({
-    Name = "Dot Visibility",
-    Default = 0.5,
-    Min = 0,
-    Max = 1,
-    Rounding = 2,
-    Flag = "VIS_Trans",
-    Tooltip = "0 solid, 1 invisible.",
-    Callback = function(v) State.VisTrans = v end,
-})
-
-VisSection:AddSlider({
-    Name = "Dot Size",
-    Default = 0.18,
-    Min = 0.05,
-    Max = 1.0,
-    Rounding = 2,
-    Type = " studs",
-    Flag = "VIS_Radius",
-    Callback = function(v) State.VisRadius = v end,
-})
-
-VisSection:AddToggle({
-    Name = "Show Start Position Dots",
-    Default = true,
-    Flag = "VIS_Ghost",
+VisSection:AddParagraph({ Name = "Visualizer",
+    Content = "Colored dots show where your hitboxes are now. Small white dots show where they started." })
+VisSection:AddToggle({ Name = "Show Hitbox Dots", Default = false, Flag = "VIS_Enabled",
+    Callback = function(v) State.Visualizer = v; if not v then clearVisualizer() end end })
+VisSection:AddColorPicker({ Name = "Dot Color", Default = Color3.fromRGB(255,60,60), Flag = "VIS_Color",
+    Callback = function(c) State.VisColor = c end })
+VisSection:AddSlider({ Name = "Dot Visibility", Default = 0.5, Min = 0, Max = 1, Rounding = 2,
+    Flag = "VIS_Trans", Tooltip = "0 solid, 1 invisible.",
+    Callback = function(v) State.VisTrans = v end })
+VisSection:AddSlider({ Name = "Dot Size", Default = 0.18, Min = 0.05, Max = 1.0, Rounding = 2,
+    Type = " studs", Flag = "VIS_Radius",
+    Callback = function(v) State.VisRadius = v end })
+VisSection:AddToggle({ Name = "Show Start Position Dots", Default = true, Flag = "VIS_Ghost",
     Tooltip = "White dots show where hitboxes were before extending.",
-    Callback = function(v) State.VisGhost = v end,
-})
+    Callback = function(v) State.VisGhost = v end })
 
 local SoundTab = Window:AddTab({ Name = "Sounds", Icon = "lucide:volume-2" })
 local SN = SoundTab:AddSection({ Name = "SOUND REPLACER", Position = "Center" })
-
-SN:AddParagraph({
-    Name = "Sound Replacer",
-    Content = "Turn on, then paste new asset IDs for any sound. Leave blank to keep the original.",
-})
-
-SN:AddToggle({
-    Name = "Enable Sound Replacer",
-    Default = false,
-    Flag = "SN_Enabled",
+SN:AddParagraph({ Name = "Sound Replacer",
+    Content = "Turn on, then paste new asset IDs for any sound. Leave blank to keep the original." })
+SN:AddToggle({ Name = "Enable Sound Replacer", Default = false, Flag = "SN_Enabled",
     Callback = function(v)
         State.SoundReplacer = v
         silentNotify({ Title = "Sounds", Content = v and "On." or "Off.", Duration = 2 })
-    end,
-})
+    end })
 
 SN:AddDivider({ Text = "Quick swaps" })
 
-local quickNames = {
-    "Punch", "HardPunch", "GutPunch", "Impact",
-    "Blood_Hit", "HardKick", "BoxingGloveHit", "Shove",
-}
+local quickNames = { "Punch","HardPunch","GutPunch","Impact",
+    "Blood_Hit","HardKick","BoxingGloveHit","Shove" }
 
 for _, sname in ipairs(quickNames) do
-    SN:AddInput({
-        Name = sname,
-        Default = "",
-        Placeholder = "new asset id",
-        Flag = "SN_" .. sname,
+    SN:AddInput({ Name = sname, Default = "", Placeholder = "new asset id",
+        Flag = "SN_"..sname,
         Callback = function(v)
             if v == "" then
                 if SFXFolder then
@@ -689,231 +688,143 @@ for _, sname in ipairs(quickNames) do
                 end
             else
                 local id = v
-                if tonumber(v) then
-                    id = "rbxassetid://" .. v
-                end
+                if tonumber(v) then id = "rbxassetid://"..v end
                 State.SoundOverrides[sname] = id
             end
-        end,
-    })
+        end })
 end
 
 SN:AddDivider({ Text = "Recent sounds" })
-
-SN:AddButton({
-    Name = "Show Last 8 Sounds Played",
+SN:AddButton({ Name = "Show Last 8 Sounds Played",
     Callback = function()
         if #State.SoundLog == 0 then
             silentNotify({ Title = "Sounds", Content = "Nothing logged yet.", Duration = 2 })
         else
             silentNotify({ Title = "Recent", Content = table.concat(State.SoundLog, "\n"), Duration = 6 })
         end
-    end,
-})
-
-SN:AddButton({
-    Name = "Clear Recent Sounds",
+    end })
+SN:AddButton({ Name = "Clear Recent Sounds",
     Callback = function()
         State.SoundLog = {}
         silentNotify({ Title = "Sounds", Content = "Cleared.", Duration = 2 })
-    end,
-})
+    end })
 
 local TrackerTab = Window:AddTab({ Name = "Tracker", Icon = "lucide:eye" })
 local TK = TrackerTab:AddSection({ Name = "PLAYER TRACKER", Position = "Center" })
-
-TK:AddParagraph({
-    Name = "Player Labels",
-    Content = "Shows a label over each nearby player with their name, health, and distance from you.",
-})
-
-TK:AddToggle({
-    Name = "Show Player Labels",
-    Default = false,
-    Flag = "TK_Enabled",
-    Callback = function(v)
-        State.TrackerEnabled = v
-        if not v then clearTracker() end
-    end,
-})
-
-TK:AddSlider({
-    Name = "Max Distance",
-    Default = 200,
-    Min = 20,
-    Max = 500,
-    Rounding = 0,
-    Type = " studs",
-    Flag = "TK_Range",
-    Tooltip = "Hide players further than this.",
-    Callback = function(v) State.TrackerRange = v end,
-})
-
-TK:AddColorPicker({
-    Name = "Label Color",
-    Default = Color3.fromRGB(80, 200, 255),
-    Flag = "TK_Color",
-    Callback = function(c) State.TrackerColor = c end,
-})
+TK:AddParagraph({ Name = "Player Labels",
+    Content = "Shows a label over each nearby player with their name, health, and distance from you." })
+TK:AddToggle({ Name = "Show Player Labels", Default = false, Flag = "TK_Enabled",
+    Callback = function(v) State.TrackerEnabled = v; if not v then clearTracker() end end })
+TK:AddSlider({ Name = "Max Distance", Default = 200, Min = 20, Max = 500, Rounding = 0,
+    Type = " studs", Flag = "TK_Range", Tooltip = "Hide players further than this.",
+    Callback = function(v) State.TrackerRange = v end })
+TK:AddColorPicker({ Name = "Label Color", Default = Color3.fromRGB(80,200,255), Flag = "TK_Color",
+    Callback = function(c) State.TrackerColor = c end })
 
 local EmoteTab = Window:AddTab({ Name = "Emotes", Icon = "lucide:person-standing" })
 local EM = EmoteTab:AddSection({ Name = "EMOTE CHANGER", Position = "Center" })
+EM:AddParagraph({ Name = "Emotes",
+    Content = "Pick a game emote or paste any Roblox animation ID to play it on your character." })
 
-EM:AddParagraph({
-    Name = "Emotes",
-    Content = "Pick a game emote or paste any Roblox animation ID to play it on your character.",
-})
-
-EM:AddDropdown({
-    Name = "Game Emote",
+EM:AddDropdown({ Name = "Game Emote",
     Values = (#emoteNames > 0) and emoteNames or { "(none found)" },
     Default = (#emoteNames > 0) and emoteNames[1] or nil,
-    Search = true,
-    Flag = "EM_Selected",
-    Callback = function(v) State.SelectedEmote = v end,
-})
+    Search = true, Flag = "EM_Selected",
+    Callback = function(v) State.SelectedEmote = v end })
 
-EM:AddToggle({
-    Name = "Loop Emote",
-    Default = true,
-    Flag = "EM_Loop",
+EM:AddToggle({ Name = "Loop Emote", Default = true, Flag = "EM_Loop",
     Tooltip = "On loops the emote. Off plays once.",
-    Callback = function(v) State.LoopEmote = v end,
-})
+    Callback = function(v) State.LoopEmote = v end })
 
-EM:AddButton({
-    Name = "Play Selected Emote",
+EM:AddButton({ Name = "Play Selected Emote",
     Callback = function()
         if not State.SelectedEmote then
-            silentNotify({ Title = "Emotes", Content = "Pick an emote first.", Duration = 3 })
-            return
+            silentNotify({ Title = "Emotes", Content = "Pick an emote first.", Duration = 3 }); return
         end
         if playNamedEmote(State.SelectedEmote) then
-            silentNotify({ Title = "Emotes", Content = "Playing: " .. State.SelectedEmote, Duration = 2 })
+            silentNotify({ Title = "Emotes", Content = "Playing: "..State.SelectedEmote, Duration = 2 })
         end
-    end,
-})
+    end })
 
-EM:AddButton({
-    Name = "Stop Emote",
+EM:AddButton({ Name = "Stop Emote",
     Callback = function()
         stopCurrentEmote()
         silentNotify({ Title = "Emotes", Content = "Stopped.", Duration = 2 })
-    end,
-})
+    end })
 
 EM:AddDivider({ Text = "Custom Animation ID" })
 
 local customInput
-customInput = EM:AddInput({
-    Name = "Animation ID",
-    Default = "",
-    Placeholder = "rbxassetid://123456789",
-    Flag = "EM_CustomId",
-    Callback = function(v) end,
-})
+customInput = EM:AddInput({ Name = "Animation ID", Default = "",
+    Placeholder = "rbxassetid://123456789", Flag = "EM_CustomId",
+    Callback = function(v) end })
 
-EM:AddButton({
-    Name = "Play Custom Animation ID",
+bindInput(customInput, "EM_CustomId")
+
+EM:AddButton({ Name = "Play Custom Animation ID",
     Callback = function()
-        local raw = customInput and customInput:GetValue() or ""
+        local raw = ""
+        local okgv, gv = pcall(function() return customInput:GetValue() end)
+        if okgv and gv then raw = gv else raw = ManualValues["EM_CustomId"] or "" end
         if raw == "" then
-            silentNotify({ Title = "Emotes", Content = "Enter an ID first.", Duration = 3 })
-            return
+            silentNotify({ Title = "Emotes", Content = "Enter an ID first.", Duration = 3 }); return
         end
         local id = raw
-        if tonumber(raw) then id = "rbxassetid://" .. raw end
+        if tonumber(raw) then id = "rbxassetid://"..raw end
         if playAnimationId(id, State.LoopEmote) then
-            silentNotify({ Title = "Emotes", Content = "Playing: " .. id, Duration = 2 })
+            silentNotify({ Title = "Emotes", Content = "Playing: "..id, Duration = 2 })
         else
             silentNotify({ Title = "Emotes", Content = "Failed.", Duration = 3 })
         end
-    end,
-})
+    end })
 
 EM:AddDivider({ Text = "Quick Emotes" })
-
-for _, name in ipairs({ "Slatt", "UZI Dance", "L Dance", "T Bag", "Muscle Flex", "Windmill" }) do
-    EM:AddButton({
-        Name = name,
+for _, name in ipairs({ "Slatt","UZI Dance","L Dance","T Bag","Muscle Flex","Windmill" }) do
+    EM:AddButton({ Name = name,
         Callback = function()
             if playNamedEmote(name) then
-                silentNotify({ Title = "Emotes", Content = "Playing: " .. name, Duration = 2 })
+                silentNotify({ Title = "Emotes", Content = "Playing: "..name, Duration = 2 })
             end
-        end
-    })
+        end })
 end
 
 local AuraTab = Window:AddTab({ Name = "Auras", Icon = "lucide:sparkles" })
 local AU = AuraTab:AddSection({ Name = "AURA SWITCHER", Position = "Center" })
-
-AU:AddParagraph({
-    Name = "Auras",
-    Content = "Pick an aura and apply it. Particles attach to your character until you clear it.",
-})
-
-AU:AddDropdown({
-    Name = "Aura",
+AU:AddParagraph({ Name = "Auras",
+    Content = "Pick an aura and apply it. Particles attach to your character until you clear it." })
+AU:AddDropdown({ Name = "Aura",
     Values = (#auraNames > 0) and auraNames or { "(none found)" },
     Default = (#auraNames > 0) and auraNames[1] or nil,
-    Search = true,
-    Flag = "AU_Selected",
-    Callback = function(v) State.SelectedAura = v end,
-})
-
-AU:AddButton({
-    Name = "Apply Aura",
+    Search = true, Flag = "AU_Selected",
+    Callback = function(v) State.SelectedAura = v end })
+AU:AddButton({ Name = "Apply Aura",
     Callback = function()
         if not State.SelectedAura then
-            silentNotify({ Title = "Auras", Content = "Pick an aura first.", Duration = 3 })
-            return
+            silentNotify({ Title = "Auras", Content = "Pick an aura first.", Duration = 3 }); return
         end
         if applyAura(State.SelectedAura) then
-            silentNotify({ Title = "Auras", Content = "Applied: " .. State.SelectedAura, Duration = 2 })
+            silentNotify({ Title = "Auras", Content = "Applied: "..State.SelectedAura, Duration = 2 })
         end
-    end,
-})
-
-AU:AddButton({
-    Name = "Clear Aura",
+    end })
+AU:AddButton({ Name = "Clear Aura",
     Callback = function()
         clearAura()
         silentNotify({ Title = "Auras", Content = "Cleared.", Duration = 2 })
-    end,
-})
-
-AU:AddToggle({
-    Name = "Reapply Aura on Respawn",
-    Default = true,
-    Flag = "AU_Respawn",
+    end })
+AU:AddToggle({ Name = "Reapply Aura on Respawn", Default = true, Flag = "AU_Respawn",
     Tooltip = "On brings your aura back after respawning.",
-    Callback = function(v) State.AuraAutoRespawn = v end,
-})
+    Callback = function(v) State.AuraAutoRespawn = v end })
 
 local MiscTab = Window:AddTab({ Name = "Misc", Icon = "lucide:settings" })
 local MS = MiscTab:AddSection({ Name = "GENERAL", Position = "Center" })
-
-MS:AddToggle({
-    Name = "Anti-AFK",
-    Default = true,
-    Flag = "MS_AntiAFK",
+MS:AddToggle({ Name = "Anti-AFK", Default = true, Flag = "MS_AntiAFK",
     Tooltip = "Keeps you in the game when idle.",
-    Callback = function(v)
-        State.AntiAFK = v
-    end,
-})
+    Callback = function(v) State.AntiAFK = v end })
 
 MS:AddDivider({ Text = "Anti-Stun" })
-
-MS:AddParagraph({
-    Name = "Anti-Stun",
-    Content = "Pushes your character out of ragdoll when knocked down. Server may keep you stunned anyway.",
-})
-
-MS:AddToggle({
-    Name = "Enable Anti-Stun",
-    Default = false,
-    Flag = "MS_AntiStun",
+MS:AddParagraph({ Name = "Anti-Stun",
+    Content = "Pushes your character out of ragdoll when knocked down. Server may keep you stunned anyway." })
+MS:AddToggle({ Name = "Enable Anti-Stun", Default = false, Flag = "MS_AntiStun",
     Tooltip = "Stand back up the moment you're knocked down.",
     Callback = function(v)
         State.AntiStun = v
@@ -922,16 +833,11 @@ MS:AddToggle({
         else
             stopAntiStun()
         end
-    end,
-})
+    end })
 
-RunService.RenderStepped:Connect(function()
-    if State.Visualizer then
-        updateVisualizer()
-    end
-    if State.TrackerEnabled then
-        updateTracker()
-    end
+_step:Connect(function()
+    if State.Visualizer then updateVisualizer() end
+    if State.TrackerEnabled then updateTracker() end
 end)
 
 LP.CharacterAdded:Connect(function(char)
@@ -939,16 +845,16 @@ LP.CharacterAdded:Connect(function(char)
     clearVisualizer()
     clearTracker()
     if State.HitboxEnabled then
-        task.wait(0.6)
+        _wait(0.6)
         scanCharacter(char)
     end
     if State.AuraAutoRespawn and State.SelectedAura then
-        task.wait(0.8)
+        _wait(0.8)
         pcall(applyAura, State.SelectedAura)
     end
     hookSoundWatch(char)
     if State.AntiStun then
-        task.wait(0.6)
+        _wait(0.6)
         attachAntiStun(char)
     end
 end)
