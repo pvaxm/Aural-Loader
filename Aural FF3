@@ -1,0 +1,4531 @@
+-- Aural Hub FF3 | bundled 2026-09-26
+
+local modules = {}
+local loaded = {}
+
+local function register_module(name, loader)
+    modules[name] = loader
+end
+
+local function require(name)
+    if loaded[name] then return loaded[name] end
+    if not modules[name] then error("module not found: " .. name) end
+    loaded[name] = modules[name]() or true
+    return loaded[name]
+end
+
+register_module("core/macros", function()
+    if not LPH_OBFUSCATED then
+        local function passthrough(value) return value end
+
+        LPH_JIT = passthrough
+        LPH_JIT_MAX = passthrough
+        LPH_NO_VIRTUALIZE = passthrough
+        LPH_NO_UPVALUES = passthrough
+        LPH_ENCFUNC = passthrough
+        LPH_CRASH = function() end
+
+        LPH_ENCSTR = function(str) return str end
+        LPH_ENCNUM = function(num) return num end
+        LPH_ENCBUF = function(buf) return buf end
+
+        LPH_REWRITE = function(expression) return expression end
+
+        LPH_PRECHECK = function() end
+
+        LPH_STACKALLOC = function(size, zero_or_one)
+            local base = (zero_or_one == 0) and 0 or 1
+            local last = base + size - 1
+            local arr = {}
+            arr.pack = function(i, j)
+                i, j = i or base, j or last
+                local out = { n = j - i + 1 }
+                for k = i, j do out[k - i + 1] = arr[k] end
+                return out
+            end
+            arr.unpack = function(i, j)
+                i, j = i or base, j or last
+                return table.unpack(arr, i, j)
+            end
+            arr.clear = function(i, j)
+                i, j = i or base, j or last
+                for k = i, j do arr[k] = nil end
+            end
+            return arr
+        end
+
+        LPH_ATTRIBUTES = function() end
+        VM = function() end
+        PRESET = function() end
+        TRANSFORM = function() end
+        INLINE = function() end
+        UNROLL = function() end
+
+        OPAL, ONYX, NONE = "OPAL", "ONYX", "NONE"
+        FAST, SECURE = "FAST", "SECURE"
+        CONTROL_FLOW, EXTRACT = "CONTROL_FLOW", "EXTRACT"
+    end
+
+end)
+
+register_module("core/services", function()
+    local services = setmetatable({}, {
+        __index = LPH_NO_UPVALUES(LPH_NO_VIRTUALIZE(function(_, service_name)
+            return cloneref(game:GetService(service_name))
+        end))
+    })
+
+    local players = services.Players
+    local workspace_service = services.Workspace
+    local replicated_storage = services.ReplicatedStorage
+    local tween_service = services.TweenService
+    local run_service = services.RunService
+    local user_input_service = services.UserInputService
+    local virtual_input_manager = Instance.new("VirtualInputManager")
+
+    local is_mobile = (user_input_service.TouchEnabled and not user_input_service.KeyboardEnabled)
+
+    local local_player = players.LocalPlayer or players.PlayerAdded:Wait()
+    local mouse = local_player:GetMouse()
+
+    local character = local_player.Character or local_player.CharacterAdded:Wait()
+    local humanoid = character and character:FindFirstChild("Humanoid")
+    local humanoid_root_part = character and character:FindFirstChild("HumanoidRootPart")
+
+    local remote = replicated_storage:WaitForChild("Remotes"):WaitForChild("CharacterSoundEvent")
+    local teams = services.Teams
+    local camera = workspace.CurrentCamera
+
+    local function refresh_character_refs(new_char)
+        character = new_char
+        humanoid = character:WaitForChild("Humanoid")
+        humanoid_root_part = character:WaitForChild("HumanoidRootPart")
+    end
+
+    local_player.CharacterAdded:Connect(function(new_char)
+        refresh_character_refs(new_char)
+    end)
+
+    local refs = {
+        get_char = function() return character end,
+        get_humanoid = function() return humanoid end,
+        get_hrp = function() return humanoid_root_part end,
+    }
+
+    return {
+        players = players,
+        workspace = workspace_service,
+        replicated_storage = replicated_storage,
+        tween_service = tween_service,
+        run_service = run_service,
+        user_input_service = user_input_service,
+        virtual_input_manager = virtual_input_manager,
+        is_mobile = is_mobile,
+        local_player = local_player,
+        mouse = mouse,
+        remote = remote,
+        teams = teams,
+        camera = camera,
+        refs = refs,
+        refresh_character_refs = refresh_character_refs
+    }
+
+end)
+
+register_module("core/config", function()
+    local aural_hub = {
+        ac_bypass = {
+            callback = 0
+        },
+
+        catching = {
+            magnets = false,
+            show_mag_hitbox = false,
+            customizable_radius = 20,
+            customizable_delay = 0,
+            tween_speed = 0,
+
+            pull_vector = false,
+            pull_vector_speed = 0,
+            pull_vector_radius = 0,
+
+            dive_vector = false,
+            dive_vector_radius = 30,
+
+            auto_jump = false,
+            auto_jump_radius = 15,
+            auto_jump_height = 10,
+
+            ball_size = 2,
+            hand_size = 2,
+            show_hand_hitbox = false,
+
+            mag_enhancer = false,
+            mag_enhancer_multiplier = 2,
+        },
+
+        player = {
+            jump_power = false,
+            jp = 50,
+
+            angle_enhancer = false,
+            angle_enhancer_value = 50,
+
+            cframe_speed = false,
+            cf_speed = 0,
+
+            fly = false,
+            fly_speed = 50,
+
+            boost_enhancer = false,
+            boost_enhancer_speed = 50,
+
+            no_move_restrictions = false,
+
+            dive_physics = false,
+            dive_speed_multiplier = 1.5,
+            dive_gravity_multiplier = 0.8,
+        },
+
+        physics = {
+            click_tackle_aimbot = false,
+            click_tackle_aimbot_radius = 15,
+
+            quick_tp = false,
+            quick_tp_speed = 0,
+
+            anti_block = false,
+            anti_jam = false,
+            no_jump_cooldown = false,
+
+            anti_oob = false,
+
+            block_extender = false,
+            block_extender_reach = 10,
+            block_extender_transparency = 1,
+
+            reset_on_catch = false,
+            reset_on_catch_duration = 0.5,
+
+            anti_tackle = false,
+            anti_down = false,
+
+            swat_reach = false,
+            swat_reach_radius = 15,
+            tackle_reach = false,
+            tackle_reach_radius = 15,
+        },
+
+        automatics = {
+            auto_qb = false,
+            auto_qb_type = "Legit",
+
+            auto_captain = false,
+            auto_catch = false,
+            auto_catch_radius = 0,
+
+            auto_swat = false,
+            auto_swat_radius = 0,
+
+            auto_kick = false,
+            auto_kick_power = 0,
+            auto_kick_accuracy = 0,
+
+            auto_rush = false,
+            auto_rush_delay = 0,
+
+            auto_guard = false,
+            auto_guard_radius = 10,
+        },
+
+        visuals = {
+            no_textures = false,
+        },
+
+        qb_aimbot = {
+            enabled = false,
+
+            release_offset = Vector3.new(0, 3, 0),
+            throw_release_delay = 0.15,
+            field_margin = 15,
+            vertical_lead = 1.25,
+            horizontal_lead = 0,
+            high_throw_boost = 8,
+            high_throw_modifier = false,
+            jump_pass_height = 8.01,
+            throw_profile = "Dime",
+
+            route_leads = {
+                Dime = {
+                    Still = { vertical = 0, horizontal = 0 },
+                    Straight = { vertical = 8, horizontal = 0 },
+                    Post = { vertical = 5, horizontal = 0.5 },
+                    Slant = { vertical = 0, horizontal = 0.5 },
+                    Comeback = { vertical = 0, horizontal = 0 },
+                },
+                Dive = {
+                    Still = { vertical = 0, horizontal = 0 },
+                    Straight = { vertical = 9.5, horizontal = 0.5 },
+                    Post = { vertical = 8.5, horizontal = 0.5 },
+                    Slant = { vertical = 8.5, horizontal = 0.5 },
+                    Comeback = { vertical = 0, horizontal = 0 },
+                },
+                Mag = {
+                    Still = { vertical = 0, horizontal = 0 },
+                    Straight = { vertical = 10, horizontal = 0.5 },
+                    Post = { vertical = 10, horizontal = 0.5 },
+                    Slant = { vertical = 0, horizontal = 0.5 },
+                    Comeback = { vertical = 0, horizontal = 0 },
+                },
+                Dot = {
+                    Still = { vertical = 0, horizontal = 0 },
+                    Straight = { vertical = 6, horizontal = 0 },
+                    Post = { vertical = 4, horizontal = 0.25 },
+                    Slant = { vertical = 0, horizontal = 0.25 },
+                    Comeback = { vertical = 0, horizontal = 0 },
+                },
+                Bullet = {
+                    Still = { vertical = 0, horizontal = 0 },
+                    Straight = { vertical = 4, horizontal = 0.25 },
+                    Post = { vertical = 3, horizontal = 0.25 },
+                    Slant = { vertical = 0, horizontal = 0.25 },
+                    Comeback = { vertical = 0, horizontal = 0 },
+                },
+                Fade = {
+                    Still = { vertical = 2, horizontal = 0 },
+                    Straight = { vertical = 10, horizontal = 0.5 },
+                    Post = { vertical = 9, horizontal = 0.5 },
+                    Slant = { vertical = 6, horizontal = 0.5 },
+                    Comeback = { vertical = 2, horizontal = 0 },
+                },
+            },
+
+            auto_angle = true,
+            angle_based = false,
+            desired_angle = 30,
+            max_air_time = 20,
+            beam_mode = false,
+            auto_choose_throw_type = true,
+            use_95_power_mode = false,
+
+            throw_angle = 45,
+            bullet_angle = 25,
+            normal_power = 94,
+            auto_power = false,
+            highest_power_mode = false,
+            custom_lead = 0,
+            prediction_color = Color3.fromRGB(194, 155, 165),
+
+            fov = 500,
+            show_fov = false,
+            target_priority = "Closest To Mouse",
+            target_lock = false,
+            locked_target = nil,
+
+            receiver_esp = false,
+            show_routes = false,
+            show_distance = false,
+
+            auto_hike = false,
+            auto_throw = false,
+            auto_throw_delay = 0.5,
+            scramble_mode = false,
+            scramble_speed = 25,
+
+            interception_avoidance = false,
+            min_open_distance = 15,
+
+            smooth_enabled = false,
+            smooth_factor = 5,
+        },
+
+        gamepasses = {
+            unlock_all = false,
+        },
+    }
+
+    local threads = {}
+    local hooks = {}
+    local handshake_integers = {}
+
+    local state = {
+        current_beam = nil,
+        current_attachment_0 = nil,
+        current_attachment_1 = nil,
+        block_extender_part = nil,
+        magnet_hitbox_part = nil,
+        fly_body_velocity = nil,
+        fly_body_gyro = nil,
+        fly_keys_held = { w = false, a = false, s = false, d = false, space = false, shift = false },
+        closest_player = nil,
+        throwing_direction = Vector3.new(0, 0, 0),
+        mobile_buttons = {},
+        boundaries = {},
+        last_hike_tick = 0,
+        auto_throw_armed = false,
+        is_scrambling = false,
+        smoothed_direction = Vector3.new(0, 0, 0),
+        scoreboard_gui = nil,
+        cards = nil,
+        angle_card = nil,
+        mode_card = nil,
+        power_card = nil,
+        target_card = nil,
+        fov_circle = nil,
+        fov_circle_frame = nil,
+        receiver_esp_guis = {},
+        throw_air_time = 2,
+        release_time = 0.15,
+        qb_ready = false,
+        target_position = nil,
+    }
+
+    return {
+        aural_hub = aural_hub,
+        threads = threads,
+        hooks = hooks,
+        handshake_integers = handshake_integers,
+        state = state,
+    }
+
+end)
+
+register_module("utils/helpers", function()
+    local services = require("core/services")
+    local refs = services.refs
+
+    local practice_place = 81310542478972
+    local match_place = 82866880824588
+
+    local get_catch_part_names = LPH_JIT(function()
+        if game.PlaceId == practice_place then
+            return { "CatchRight", "CatchLeft" }
+        end
+        return { "CatchR", "CatchL" }
+    end)
+
+    local get_random_catch_part = LPH_JIT(function()
+        local char = refs.get_char()
+        if not char then return nil end
+
+        for _, name in next, get_catch_part_names() do
+            local part = char:FindFirstChild(name)
+            if part and part:IsA("BasePart") then
+                return part
+            end
+        end
+
+        return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+    end)
+
+    local footballs = {}
+
+    local add_football = function(obj)
+        if obj.Name == "Football" then
+            task.spawn(function()
+                local part = nil
+                if obj:IsA("BasePart") then
+                    part = obj
+                elseif obj:IsA("Tool") or obj:IsA("Model") then
+                    part = obj:FindFirstChild("Handle") or obj:FindFirstChildWhichIsA("BasePart")
+                    if not part then
+                        part = obj:WaitForChild("Handle", 1) or obj:FindFirstChildWhichIsA("BasePart")
+                    end
+                end
+                if part and obj:IsDescendantOf(services.workspace) then
+                    footballs[obj] = part
+                end
+            end)
+        end
+    end
+
+    local remove_football = function(obj)
+        footballs[obj] = nil
+    end
+
+    for _, obj in next, services.workspace:GetDescendants() do
+        add_football(obj)
+    end
+    services.workspace.DescendantAdded:Connect(add_football)
+    services.workspace.DescendantRemoving:Connect(remove_football)
+
+    local get_closest_football = LPH_JIT(function()
+        local hrp = refs.get_hrp()
+        if not hrp then return nil end
+
+        local closest_football = nil
+        local closest_dist = math.huge
+
+        for obj, part in next, footballs do
+            if part and part.Parent and obj.Parent then
+                local dist = (part.Position - hrp.Position).Magnitude
+                if dist < closest_dist then
+                    closest_football = part
+                    closest_dist = dist
+                end
+            else
+                footballs[obj] = nil
+            end
+        end
+
+        return closest_football
+    end)
+
+    local is_bot = LPH_JIT(function(name)
+        return string.match(name or "", "^bot %d+$") ~= nil
+    end)
+
+    local get_bot_lead_side = LPH_JIT(function(bot_name)
+        local num = tonumber(string.match(bot_name or "", "^bot (%d+)$"))
+        if not num then return nil end
+        if num == 1 or num == 2 then return "a" end
+        if num == 3 or num == 4 then return "b" end
+        return (num % 2 == 1) and "a" or "b"
+    end)
+
+    local is_vector3_valid = LPH_JIT(function(pos)
+        return pos.X == pos.X and pos.Y == pos.Y and pos.Z == pos.Z
+    end)
+
+    local get_screen_position = LPH_JIT(function(obj)
+        local screen_point, on_screen = services.camera:WorldToViewportPoint(obj.Position)
+        return Vector2.new(screen_point.X, screen_point.Y), on_screen
+    end)
+
+    local get_field_orientation = LPH_JIT(function(pos)
+        return (pos.Z > 0) and 1 or -1
+    end)
+
+    local get_field_orientation_x = LPH_JIT(function(pos)
+        return (pos.X > 0) and 1 or -1
+    end)
+
+    local is_moving = LPH_JIT(function(other_player)
+        local ok, result = pcall(function()
+            local char = other_player.Character
+            local hum = char:FindFirstChild("Humanoid")
+            return hum and hum.MoveDirection.Magnitude > 0
+        end)
+        return ok and result or false
+    end)
+
+    local is_bot_moving = LPH_JIT(function(speed)
+        return speed.Magnitude > 0.5
+    end)
+
+    local character_has_football = LPH_JIT(function()
+        local char = refs.get_char()
+        return char and char:FindFirstChild("Football") ~= nil
+    end)
+
+    local get_ball_carrier = LPH_JIT(function()
+        local local_player = services.local_player
+        local flags = services.replicated_storage:FindFirstChild("Flags")
+
+        if flags and game.PlaceId == match_place then
+            local carrier_val = flags:FindFirstChild("Carrier")
+            local carrier_player = carrier_val and carrier_val.Value
+            if carrier_player and carrier_player ~= local_player and carrier_player.Character then
+                return carrier_player.Character
+            end
+        end
+
+        for _, player in next, services.players:GetPlayers() do
+            if player ~= local_player and player.Character and player.Team ~= local_player.Team then
+                if player.Character:FindFirstChild("Football") then
+                    return player.Character
+                end
+                local tool = player.Character:FindFirstChildOfClass("Tool")
+                if tool and tool.Name == "Football" then
+                    return player.Character
+                end
+            end
+        end
+
+        return nil
+    end)
+
+    local fire_catch = LPH_JIT(function()
+        services.remote:FireServer("PlayerActions", "catch")
+    end)
+
+    return {
+        practice_place = practice_place,
+        match_place = match_place,
+        get_catch_part_names = get_catch_part_names,
+        get_random_catch_part = get_random_catch_part,
+        get_closest_football = get_closest_football,
+        is_bot = is_bot,
+        get_bot_lead_side = get_bot_lead_side,
+        is_vector3_valid = is_vector3_valid,
+        get_screen_position = get_screen_position,
+        get_field_orientation = get_field_orientation,
+        get_field_orientation_x = get_field_orientation_x,
+        is_moving = is_moving,
+        is_bot_moving = is_bot_moving,
+        character_has_football = character_has_football,
+        get_ball_carrier = get_ball_carrier,
+        fire_catch = fire_catch,
+    }
+
+end)
+
+register_module("utils/math", function()
+    local services = require("core/services")
+    local config = require("core/config")
+    local helpers = require("utils/helpers")
+
+    local aural_hub = config.aural_hub
+    local refs = services.refs
+
+    local throw_type_offsets = {
+        ["Dime"] = Vector3.new(0, 10, 0),
+        ["Mag"] = Vector3.new(0, 7, 0),
+        ["Dive"] = Vector3.new(0, 3, 0),
+        ["Dot"] = Vector3.new(0, 2, 0),
+        ["Fade"] = Vector3.new(0, 9, -2),
+        ["Bullet"] = Vector3.new(0, 5, 0),
+        ["Jump"] = Vector3.new(0, 5, 0),
+    }
+
+    local get_power = LPH_JIT(function(range, gravity)
+        return math.sqrt(range * gravity)
+    end)
+
+    local beam_projectile = LPH_JIT(function(g, v0, x0, t1)
+        local c = 0.5 * 0.5 * 0.5
+        local p3 = 0.5 * g * t1 * t1 + v0 * t1 + x0
+        local p2 = p3 - (g * t1 * t1 + v0 * t1) / 3
+        local p1 = (c * g * t1 * t1 + 0.5 * v0 * t1 + x0 - c * (x0 + p3)) / (3 * c) - p2
+
+        local curve0 = (p1 - x0).Magnitude
+        local curve1 = (p2 - p3).Magnitude
+
+        local r1 = (p1 - x0).Unit
+        local r2 = (p2 - p3).Unit
+        local world_up = Vector3.new(0, 1, 0)
+
+        local b1 = math.abs(r1:Dot(world_up)) < 0.999 and r1:Cross(world_up).Unit or r1:Cross(Vector3.new(1,0,0)).Unit
+        local u1 = b1:Cross(r1).Unit
+
+        local b2 = math.abs(r2:Dot(world_up)) < 0.999 and r2:Cross(world_up).Unit or r2:Cross(Vector3.new(1,0,0)).Unit
+        local u2 = b2:Cross(r2).Unit
+
+        local cf1 = CFrame.new(
+            x0.X, x0.Y, x0.Z,
+            r1.X, u1.X, b1.X,
+            r1.Y, u1.Y, b1.Y,
+            r1.Z, u1.Z, b1.Z
+        )
+
+        local cf2 = CFrame.new(
+            p3.X, p3.Y, p3.Z,
+            r2.X, u2.X, b2.X,
+            r2.Y, u2.Y, b2.Y,
+            r2.Z, u2.Z, b2.Z
+        )
+
+        return curve0, -curve1, cf1, cf2
+    end)
+
+    local horizontal_range_of_projectile = LPH_JIT(function(target)
+        local target_root_part
+        if helpers.is_bot(target.Name) then
+            target_root_part = target:FindFirstChild("Head")
+        else
+            target_root_part = target.Character and target.Character:FindFirstChild("Head")
+        end
+
+        local char = refs.get_char()
+        if not target_root_part or not char then return 0 end
+
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return 0 end
+
+        local projectile_range = (hrp.Position - target_root_part.Position)
+        return Vector2.new(projectile_range.X, projectile_range.Z).Magnitude
+    end)
+
+    local calculate_route_of_player = LPH_JIT(function(player)
+        local route_type = "Still"
+        if not helpers.is_bot(player.Name) then
+            local ok, result = pcall(function()
+                local local_char = refs.get_char()
+                if not local_char then return "Still" end
+                local local_hrp = local_char:FindFirstChild("HumanoidRootPart")
+                if not local_hrp then return "Still" end
+
+                local char = player.Character
+                if not char then return "Still" end
+                local hum = char:FindFirstChild("Humanoid")
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if not hum or not hrp then return "Still" end
+
+                local dir_moving = hum.MoveDirection
+                if dir_moving.Magnitude < 0.1 then return "Still" end
+
+                local dist_vec = (hrp.Position - local_hrp.Position)
+                if dist_vec.Magnitude < 1 then return "Still" end
+                local dir = dist_vec.Unit
+
+                local z2
+                if helpers.get_field_orientation(dir_moving) == -1 then
+                    z2 = (dir * Vector3.new(0, 0, -1))
+                else
+                    z2 = (dir * Vector3.new(0, 0, 1))
+                end
+
+                local dot_prod = dir_moving:Dot(z2)
+
+                local rt = "Still"
+                if dot_prod >= 0.8 or dot_prod <= -0.8 then
+                    rt = "Straight"
+                elseif dot_prod >= 0.45 or dot_prod <= -0.45 then
+                    rt = "Post"
+                elseif dot_prod >= 0.2 or dot_prod <= -0.2 then
+                    rt = "Slant"
+                end
+
+                local dot_norm = dir_moving:Dot(dir)
+                if dot_norm < -0.35 then
+                    rt = "Comeback"
+                end
+
+                return rt
+            end)
+            if ok then
+                route_type = result
+            end
+        else
+            route_type = "Straight"
+        end
+
+        return route_type
+    end)
+
+    local get_throw_type = LPH_JIT(function(target)
+        if not target then return "Dime" end
+
+        local rp = horizontal_range_of_projectile(target)
+        local r = calculate_route_of_player(target)
+        local throw_type = "Dime"
+
+        if helpers.is_bot(target.Name) then
+            throw_type = "Dime"
+        else
+            if rp <= 100 and r == "Slant" then
+                throw_type = "Bullet"
+            elseif rp > 100 and r == "Slant" then
+                throw_type = "Dive"
+            elseif rp <= 150 and r == "Straight" then
+                throw_type = "Dive"
+            elseif rp > 150 and r == "Straight" then
+                throw_type = "Dime"
+            elseif rp <= 150 and r == "Post" then
+                throw_type = "Dive"
+            elseif rp > 150 and r == "Post" then
+                throw_type = "Dime"
+            elseif rp <= 100 and r == "Still" then
+                throw_type = "Dot"
+            elseif rp > 100 and r == "Still" then
+                throw_type = "Dime"
+            elseif rp <= 150 and r == "Comeback" then
+                throw_type = "Bullet"
+            elseif rp > 150 and r == "Comeback" then
+                throw_type = "Dive"
+            end
+        end
+
+        return throw_type
+    end)
+
+    local calculate_high_speed_low_angle = LPH_JIT(function(gravity, speed)
+        local closest_player = config.state.closest_player
+        if not closest_player then return 0 end
+        local rp = horizontal_range_of_projectile(closest_player)
+        local route = calculate_route_of_player(closest_player)
+        local sin_val = (rp * gravity) / (speed ^ 2)
+        if sin_val > 1 or sin_val < -1 then return math.rad(45) end
+        local eq
+
+        if route == "Comeback" then
+            eq = (rp < 150) and 0.65 * math.asin(sin_val) or 0.6 * math.asin(sin_val)
+        elseif route == "Still" then
+            eq = 0.5 * math.asin(sin_val)
+        elseif route == "Post" then
+            eq = (rp < 150) and 0.8 * math.asin(sin_val) or 0.84 * math.asin(sin_val)
+        else
+            eq = (rp < 150) and 0.82 * math.asin(sin_val) or 0.85 * math.asin(sin_val)
+        end
+
+        return eq
+    end)
+
+    local calculate_launch_angle_bullet = LPH_JIT(function(gravity, initial_velocity)
+        local closest_player = config.state.closest_player
+        if not closest_player then return 0 end
+        local max_angle = 45
+        local rp = horizontal_range_of_projectile(closest_player)
+
+        if initial_velocity <= 0 then return 0 end
+
+        local sin_to_theta = (rp * gravity) / (initial_velocity ^ 2)
+        if sin_to_theta > 1 or sin_to_theta < -1 then return 0 end
+
+        local angle_rad = math.asin(sin_to_theta) / 2
+        local angle_deg = math.deg(angle_rad)
+
+        if angle_deg > max_angle then return math.rad(max_angle) end
+        return angle_rad
+    end)
+
+    local calculate_launch_angle = LPH_JIT(function(gravity, initial_velocity)
+        local closest_player = config.state.closest_player
+        if not closest_player then return 0 end
+        local rp = horizontal_range_of_projectile(closest_player)
+        local sin_val = gravity * rp / (initial_velocity ^ 2)
+        if sin_val > 1 or sin_val < -1 then return math.rad(45) end
+        return 0.65 * math.asin(sin_val)
+    end)
+
+    local get_time_of_flight_projectile = LPH_JIT(function(initial_velocity, required_angle, gravity)
+        return (2 * initial_velocity * math.sin(required_angle)) / gravity
+    end)
+
+    local keep_position_in_bounds = LPH_JIT(function(target_pos, min_x, min_z)
+        local clamped_x = math.clamp(target_pos.X, -min_x, min_x)
+        local clamped_z = math.clamp(target_pos.Z, -min_z, min_z)
+        return Vector3.new(clamped_x, target_pos.Y, clamped_z)
+    end)
+
+    local bot_estimated_vel = LPH_JIT(function(time, bot)
+        local ok, result = pcall(function()
+            local hrp = bot:FindFirstChild("HumanoidRootPart")
+            if not hrp then return bot:FindFirstChild("Head") and bot:FindFirstChild("Head").Position or Vector3.zero end
+
+            local speed = hrp.Velocity
+            local throw_type = get_throw_type(bot)
+            local bot_eq
+            local lead_bot_3, lead_bot_1
+
+            if helpers.is_bot_moving(speed) then
+                lead_bot_3 = {
+                    ["Dime"] = Vector3.new(-1, 1.25, -6),
+                    ["Mag"] = Vector3.new(-2, 2, -11),
+                    ["Dive"] = Vector3.new(-1.25, 1.5, -9),
+                    ["Dot"] = Vector3.new(-0.09, 0.09, -4),
+                    ["Fade"] = Vector3.new(0, 0, 0),
+                    ["Bullet"] = Vector3.new(-5, -1, -1.25),
+                    ["Jump"] = Vector3.new(-1, 2.25, -5)
+                }
+                lead_bot_1 = {
+                    ["Dime"] = Vector3.new(1, 1.25, 6),
+                    ["Mag"] = Vector3.new(2, 2, 11),
+                    ["Dive"] = Vector3.new(1.25, 1.5, 9),
+                    ["Dot"] = Vector3.new(0.09, 0.09, 4),
+                    ["Fade"] = Vector3.new(0, 0, 0),
+                    ["Bullet"] = Vector3.new(5, 1, 1.25),
+                    ["Jump"] = Vector3.new(1, 2, 5)
+                }
+            else
+                lead_bot_3 = {
+                    ["Dime"] = Vector3.zero, ["Mag"] = Vector3.zero, ["Dive"] = Vector3.zero,
+                    ["Dot"] = Vector3.zero, ["Fade"] = Vector3.zero, ["Bullet"] = Vector3.zero,
+                    ["Jump"] = Vector3.new(0, 4, 0)
+                }
+                lead_bot_1 = {
+                    ["Dime"] = Vector3.zero, ["Mag"] = Vector3.zero, ["Dive"] = Vector3.zero,
+                    ["Dot"] = Vector3.zero, ["Fade"] = Vector3.zero, ["Bullet"] = Vector3.zero,
+                    ["Jump"] = Vector3.new(0, 5, 0)
+                }
+            end
+
+            local lead_side = helpers.get_bot_lead_side(bot.Name)
+            local lead_table = (lead_side == "b") and lead_bot_3 or lead_bot_1
+            local time_acc = speed * time
+
+            if helpers.is_bot_moving(speed) then
+                bot_eq = hrp.Position + time_acc + (lead_table[throw_type] or Vector3.zero)
+            elseif lead_side == "b" then
+                bot_eq = hrp.Position + (lead_table[throw_type] or Vector3.zero)
+            else
+                bot_eq = hrp.Position
+            end
+
+            return bot_eq
+        end)
+
+        return ok and result or Vector3.zero
+    end)
+
+    local get_receiver_target_position = LPH_JIT(function(time_of_flight, receiver)
+        local ok, result = pcall(function()
+            local char = receiver.Character
+            if not char then return Vector3.zero end
+
+            local hum = char:FindFirstChild("Humanoid")
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local head = char:FindFirstChild("Head")
+            if not hum or not hrp or not head then return Vector3.zero end
+
+            local move_dir = hum.MoveDirection
+            local vel2 = hrp.Velocity
+
+            local custom_lead = aural_hub.qb_aimbot.custom_lead or 0
+            local throw_type = get_throw_type(receiver)
+
+            local field_ori = helpers.get_field_orientation(move_dir)
+            local field_ori_x = helpers.get_field_orientation_x(move_dir)
+
+            local lead_number
+
+            if helpers.is_moving(receiver) then
+                if field_ori == 1 and field_ori_x == 1 then
+                    lead_number = {
+                        Dime = Vector3.new(1, 1.25, 8), Mag = Vector3.new(2, 2, 15),
+                        Dive = Vector3.new(1.25, 1.5, 12), Dot = Vector3.new(0.09, 0.09, 6),
+                        Fade = Vector3.zero, Bullet = Vector3.new(5, 1, 2),
+                        Jump = Vector3.new(1, 2.25, 7)
+                    }
+                elseif field_ori == -1 and field_ori_x == -1 then
+                    lead_number = {
+                        Dime = Vector3.new(-1, 1.25, -8), Mag = Vector3.new(-2, 2, -15),
+                        Dive = Vector3.new(-1.25, 1.5, -12), Dot = Vector3.new(-0.09, 0.09, -6),
+                        Fade = Vector3.zero, Bullet = Vector3.new(-5, -1, -2),
+                        Jump = Vector3.new(-1, 2.25, -7)
+                    }
+                elseif field_ori == 1 and field_ori_x == -1 then
+                    lead_number = {
+                        Dime = Vector3.new(-1, 1.25, 8), Mag = Vector3.new(-2, 2, 15),
+                        Dive = Vector3.new(-1.25, 1.5, 12), Dot = Vector3.new(0.09, 0.09, 6),
+                        Fade = Vector3.zero, Bullet = Vector3.new(-5, -1, 2),
+                        Jump = Vector3.new(-1, 2.25, 7)
+                    }
+                elseif field_ori == -1 and field_ori_x == 1 then
+                    lead_number = {
+                        Dime = Vector3.new(1, 1.25, -8), Mag = Vector3.new(2, 2, -15),
+                        Dive = Vector3.new(1.25, 1.5, -12), Dot = Vector3.new(0.09, 0.09, -6),
+                        Fade = Vector3.zero, Bullet = Vector3.new(5, -1, -2),
+                        Jump = Vector3.new(1, 2.25, -7)
+                    }
+                else
+                    lead_number = {
+                        Dime = Vector3.zero, Mag = Vector3.zero, Dive = Vector3.zero,
+                        Dot = Vector3.zero, Fade = Vector3.zero, Bullet = Vector3.zero,
+                        Jump = Vector3.new(0, 5, 0)
+                    }
+                end
+            else
+                lead_number = {
+                    Dime = Vector3.zero, Mag = Vector3.zero, Dive = Vector3.zero,
+                    Dot = Vector3.zero, Fade = Vector3.zero, Bullet = Vector3.zero,
+                    Jump = Vector3.new(0, 5, 0)
+                }
+            end
+
+            local anim_delay = 0.08
+            local lead_tof = time_of_flight
+            if aural_hub.qb_aimbot.auto_angle and not aural_hub.qb_aimbot.highest_power_mode then
+                lead_tof = time_of_flight + anim_delay
+            end
+
+            local throw_type_acc
+            if aural_hub.qb_aimbot.highest_power_mode then
+                throw_type_acc = vel2 * time_of_flight
+            elseif custom_lead ~= 0 then
+                local flat_dir = Vector3.new(move_dir.X, 0, move_dir.Z)
+                local extra_lead = (flat_dir.Magnitude > 0) and (flat_dir.Unit * (custom_lead * lead_tof)) or Vector3.zero
+                throw_type_acc = vel2 * lead_tof + extra_lead
+            else
+                throw_type_acc = vel2 * lead_tof
+            end
+
+            local eq
+            local base_pos = aural_hub.qb_aimbot.highest_power_mode and hrp.Position or head.Position
+
+            if helpers.is_moving(receiver) then
+                eq = base_pos + throw_type_acc + (lead_number[throw_type] or Vector3.zero)
+            elseif throw_type == "Jump" then
+                eq = base_pos + Vector3.new(0, 6, 0)
+            else
+                eq = base_pos
+            end
+
+            return eq
+        end)
+
+        return ok and result or Vector3.zero
+    end)
+
+    local velocity_needed_to_reach_position = LPH_JIT(function(angle, start_pos, end_pos, gravity, time)
+        local displacement = end_pos - start_pos
+        local horiz_disp = Vector3.new(displacement.X, 0, displacement.Z)
+        local horiz_dist = horiz_disp.Magnitude
+
+        local horiz_vel = (horiz_dist > 0) and (horiz_disp.Unit * (horiz_dist / time)) or Vector3.zero
+        local vert_vel = (displacement.Y - 0.5 * gravity.Y * time * time) / time
+        local est_vel = horiz_vel + Vector3.new(0, vert_vel, 0)
+
+        local direction = est_vel.Magnitude > 0 and est_vel.Unit or Vector3.new(0, 1, 0)
+        local power = est_vel.Magnitude + 0.05
+
+        if aural_hub.qb_aimbot.highest_power_mode then
+            return est_vel, direction, math.clamp(math.round(power), 85, 95)
+        else
+            return est_vel, direction, math.clamp(math.round(power), 0, 95)
+        end
+    end)
+
+    local solve_projectile_for_power = LPH_JIT(function(start_pos, target_pos, power, gravity, prefer_high_arc)
+        gravity = gravity or 28
+        local displacement = target_pos - start_pos
+        local horizontal = Vector3.new(displacement.X, 0, displacement.Z)
+        local r = horizontal.Magnitude
+        local dy = displacement.Y
+
+        if r < 0.01 then
+            local dir = Vector3.new(0, dy >= 0 and 1 or -1, 0)
+            return dir, power
+        end
+
+        if power <= 0 then
+            return displacement.Unit, power
+        end
+
+        local g = math.abs(gravity)
+        local a = (g * r * r) / (2 * power * power)
+        local discriminant = (r * r) - 4 * a * (a + dy)
+
+        local tan_theta
+        if discriminant >= 0 then
+            local sqrt_disc = math.sqrt(discriminant)
+            if prefer_high_arc then
+                tan_theta = (r + sqrt_disc) / (2 * a)
+                tan_theta = math.min(tan_theta, 11.43)
+            else
+                tan_theta = (r - sqrt_disc) / (2 * a)
+                tan_theta = math.max(tan_theta, 0)
+            end
+        else
+            tan_theta = math.max(dy / r + 0.5, 1)
+        end
+
+        local cos_theta = 1 / math.sqrt(1 + tan_theta * tan_theta)
+        local sin_theta = tan_theta * cos_theta
+        local horizontal_dir = horizontal.Unit
+
+        local direction = horizontal_dir * cos_theta + Vector3.new(0, sin_theta, 0)
+        return direction.Unit, power
+    end)
+
+    local get_flight_time_from_velocity = LPH_JIT(function(start_pos, target_pos, velocity, gravity)
+        gravity = gravity or Vector3.new(0, -28, 0)
+        local displacement = target_pos - start_pos
+        local horiz_disp = Vector3.new(displacement.X, 0, displacement.Z).Magnitude
+        local horiz_vel = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+
+        if horiz_vel > 0.01 then
+            return horiz_disp / horiz_vel
+        end
+
+        local g = math.abs(gravity.Y)
+        if g > 0 and velocity.Y > 0.01 then
+            return (2 * velocity.Y) / g
+        end
+
+        return 1
+    end)
+
+    return {
+        throw_type_offsets = throw_type_offsets,
+        get_power = get_power,
+        beam_projectile = beam_projectile,
+        horizontal_range_of_projectile = horizontal_range_of_projectile,
+        calculate_route_of_player = calculate_route_of_player,
+        get_throw_type = get_throw_type,
+        calculate_high_speed_low_angle = calculate_high_speed_low_angle,
+        calculate_launch_angle_bullet = calculate_launch_angle_bullet,
+        calculate_launch_angle = calculate_launch_angle,
+        get_time_of_flight_projectile = get_time_of_flight_projectile,
+        keep_position_in_bounds = keep_position_in_bounds,
+        bot_estimated_vel = bot_estimated_vel,
+        get_receiver_target_position = get_receiver_target_position,
+        velocity_needed_to_reach_position = velocity_needed_to_reach_position,
+        solve_projectile_for_power = solve_projectile_for_power,
+        get_flight_time_from_velocity = get_flight_time_from_velocity,
+    }
+
+end)
+
+register_module("core/ac_bypass", function()
+    local services = require("core/services")
+
+    local local_player = services.local_player
+    local target_remote = services.remote
+    local run_service = services.run_service
+
+    local function run()
+        if game.PlaceId ~= 82866880824588 then
+            return
+        end
+
+        if getgenv().bypass_loaded then
+            return warn("[+] already loaded bypass")
+        end
+        getgenv().bypass_loaded = true
+
+        local script_context = cloneref and cloneref(game:GetService("ScriptContext")) or game:GetService("ScriptContext")
+        local is_setup = false
+        local bypass_state = true
+
+        local shuffle_function = nil
+        local handshake_function = nil
+
+        local function fail(code, message)
+            local_player:Kick(string.format("[0x%02X]: %s", code, message))
+            task.wait(1.50)
+        end
+
+        for _, value in next, getgc() do
+            if type(value) ~= "function" or not islclosure(value) then
+                continue
+            end
+
+            local ok, err = pcall(function()
+                local script_info = getrenv().debug.info(value, "s")
+                if not script_info or not string.find(script_info, "PlayerModule") then
+                    return
+                end
+
+                local constants = getconstants(value)
+                if table.find(constants, 90001) then
+                    shuffle_function = value
+                end
+            end)
+
+            if not ok and err then
+                continue
+            end
+        end
+
+        if not shuffle_function then
+            fail(0x01, "failed to retrieve shuffle function.")
+            return
+        end
+
+        for _, value in next, getgc() do
+            if type(value) ~= "function" or not islclosure(value) then
+                continue
+            end
+
+            local ok_src, src = pcall(getrenv().debug.info, value, "s")
+            if not ok_src or not src or not string.find(src, "PlayerModule") then
+                continue
+            end
+
+            local ok_upvs, upvs = pcall(getupvalues, value)
+            if not ok_upvs or not upvs then
+                continue
+            end
+
+            local has_secondary_remote = false
+            local has_add_shuffle = false
+
+            for _, uv in next, upvs do
+                local ok_t, t = pcall(typeof, uv)
+                if not ok_t then
+                    continue
+                end
+
+                if t == "Instance" then
+                    local ok_cls, cls = pcall(function() return uv.ClassName end)
+                    if ok_cls and cls == "RemoteEvent" and uv ~= target_remote then
+                        has_secondary_remote = true
+                    end
+                elseif t == "function" and islclosure(uv) then
+                    local ok_c, consts = pcall(getconstants, uv)
+                    if ok_c and consts and table.find(consts, 90001) then
+                        has_add_shuffle = true
+                    end
+                end
+
+                if has_secondary_remote and has_add_shuffle then
+                    break
+                end
+            end
+
+            if has_secondary_remote and has_add_shuffle then
+                handshake_function = value
+                break
+            end
+        end
+
+        if not handshake_function then
+            fail(0x02, "failed to retrieve handshake function via getgc.")
+            return
+        end
+
+        local content_uri = nil
+        do
+            local ok_c, consts = pcall(getconstants, handshake_function)
+            if ok_c and consts then
+                for _, c in next, consts do
+                    if type(c) == "string" and #c > 5 and string.byte(c, 1) == 240 then
+                        content_uri = c
+                        break
+                    end
+                end
+            end
+        end
+
+        local handshake_upvalues = getupvalues(handshake_function)
+
+        local ac_long_string = nil
+        local secondary_shuffle = nil
+        local secondary_remote = nil
+        local pass_table = nil
+        local fail_table_a = nil
+        local fail_table_b = nil
+
+        local hs_large = {}
+        local hs_small = {}
+        local remote_events = {}
+
+        for index, value in next, handshake_upvalues do
+            local ok, t = pcall(typeof, value)
+            if not ok then
+                continue
+            end
+
+            if t == "string" then
+                if #value > 1000000 and not ac_long_string then
+                    ac_long_string = value
+                end
+            elseif t == "Instance" then
+                local ok_cls, cls = pcall(function() return value.ClassName end)
+                if ok_cls and cls == "RemoteEvent" and value ~= target_remote then
+                    table.insert(remote_events, value)
+                end
+            elseif t == "function" and islclosure(value) then
+                if value ~= shuffle_function then
+                    local ok_c, consts = pcall(getconstants, value)
+                    if ok_c and consts and table.find(consts, 90001) and not secondary_shuffle then
+                        secondary_shuffle = value
+                    end
+                end
+            elseif t == "table" then
+                local ok_mt, mt = pcall(getrawmetatable, value)
+                if not ok_mt or type(mt) ~= "table" then
+                    continue
+                end
+
+                local ok_fn, call_fn = pcall(rawget, mt, "__call")
+                if not ok_fn or type(call_fn) ~= "function" then
+                    continue
+                end
+
+                local ok_cc, call_consts = pcall(getconstants, call_fn)
+                if not ok_cc or not call_consts or not table.find(call_consts, 90001) then
+                    continue
+                end
+
+                local ok_in, inner = pcall(rawget, value, 1)
+                if not ok_in or type(inner) ~= "table" then
+                    continue
+                end
+
+                local ok_19, val19 = pcall(rawget, inner, 19)
+                if not ok_19 or type(val19) ~= "number" then
+                    continue
+                end
+
+                if val19 >= 1000000 then
+                    table.insert(hs_large, { index = index, tbl = value })
+                else
+                    table.insert(hs_small, { index = index, tbl = value })
+                end
+            end
+        end
+
+        for _, connection in next, getconnections(script_context.Error) do
+            connection:Disable()
+        end
+
+        secondary_remote = remote_events[1]
+        pass_table = hs_large[1] and hs_large[1].tbl
+        fail_table_a = hs_small[1] and hs_small[1].tbl
+        fail_table_b = hs_small[2] and hs_small[2].tbl
+
+        if not content_uri then
+            fail(0x03, "failed to retrieve marker string from constants.")
+            return
+        end
+
+        if not ac_long_string then
+            fail(0x07, "failed to retrieve ac marker string upvalue.")
+            return
+        end
+
+        if not secondary_remote then
+            fail(0x04, "failed to retrieve secondary remote.")
+            return
+        end
+
+        if not secondary_shuffle then
+            fail(0x05, "failed to retrieve secondary shuffle.")
+            return
+        end
+
+        if not pass_table or not fail_table_a or not fail_table_b then
+            fail(0x06, "failed to retrieve HS tables.")
+            return
+        end
+
+        local old_sub = nil
+        old_sub = hookfunction(getrenv().string.sub, function(...)
+            local arguments = { ... }
+
+            if not checkcaller() then
+                if arguments[2] == -3 and arguments[3] == -3 then
+                    return "i"
+                end
+
+                if arguments[2] == -1 then
+                    return " "
+                end
+            end
+
+            return old_sub(...)
+        end)
+
+        local clean_sequences = {
+            { 1750, 1750, 1655, 1761, 1888, 1767 },
+            { 1645, 1765, 1623, 1714, 1881, 1656 },
+            { 1650, 1749, 1853, 1741, 1761, 1856 },
+        }
+
+        local primary_shuffle = nil
+        primary_shuffle = hookfunction(shuffle_function, function(...)
+            local arguments = { ... }
+
+            if rawlen(arguments) >= 9 then
+                local p3 = arguments[3]
+                local p4 = arguments[4]
+                local p5 = arguments[5]
+                local p7 = arguments[7]
+                local p8 = arguments[8]
+                local p9 = arguments[9]
+
+                for _, seq in next, clean_sequences do
+                    if p3 == seq[1] and p4 == seq[2] and p5 == seq[3]
+                        and p7 == seq[4] and p8 == seq[5] and p9 == seq[6] then
+                        return primary_shuffle(...)
+                    end
+                end
+
+                return task.wait(9e9)
+            end
+
+            return primary_shuffle(...)
+        end)
+
+        local dummy_event = Instance.new("BindableEvent").Event
+        local setupvalue_fn = debug and debug.setupvalue or setupvalue
+
+        for _, value in next, getgc() do
+            if type(value) ~= "function" or not islclosure(value) then
+                continue
+            end
+
+            local ok, err = pcall(function()
+                local script_info = getrenv().debug.info(value, "s")
+                if not script_info or not string.find(script_info, "PlayerModule") then
+                    return
+                end
+
+                local upvalues = getupvalues(value)
+                if not upvalues then
+                    return
+                end
+
+                for i, upvalue in next, upvalues do
+                    if typeof(upvalue) == "RBXScriptSignal" then
+                        if upvalue == run_service.Heartbeat
+                            or upvalue == run_service.RenderStepped
+                            or upvalue == run_service.Stepped then
+                            setupvalue_fn(value, i, dummy_event)
+                        end
+                    end
+                end
+            end)
+
+            if not ok and err then
+                continue
+            end
+        end
+
+        for _, value in next, getgc() do
+            if type(value) ~= "function" or not islclosure(value) then
+                continue
+            end
+
+            local ok_src, src = pcall(getrenv().debug.info, value, "s")
+            if not ok_src or not src or not string.find(src, "PlayerModule") then
+                continue
+            end
+
+            local ok_upvs, upvs = pcall(getupvalues, value)
+            if not ok_upvs or not upvs then
+                continue
+            end
+
+            for i, uv in next, upvs do
+                if typeof(uv) == "boolean" and uv == false then
+                    local has_remote_in_closure = false
+                    for _, uv2 in next, upvs do
+                        local ok2, t2 = pcall(typeof, uv2)
+                        if ok2 and t2 == "Instance" then
+                            local ok3, cls = pcall(function() return uv2.ClassName end)
+                            if ok3 and (cls == "RemoteEvent" or cls == "RemoteFunction") then
+                                has_remote_in_closure = true
+                                break
+                            end
+                        end
+                    end
+
+                    if has_remote_in_closure then
+                        pcall(setupvalue_fn, value, i, true)
+                    end
+                end
+            end
+        end
+
+        local update_function = nil
+        local renv_rawget = getrenv().rawget
+        local renv_rawset = getrenv().rawset
+
+        for _, value in next, getgc() do
+            if type(value) ~= "function" or not islclosure(value) or value == handshake_function then
+                continue
+            end
+
+            local ok_src, src = pcall(getrenv().debug.info, value, "s")
+            if not ok_src or not src or not string.find(src, "PlayerModule") then
+                continue
+            end
+
+            local ok_upvs, upvs = pcall(getupvalues, value)
+            if not ok_upvs or not upvs then
+                continue
+            end
+
+            local has_rawget_upval = false
+            local has_rawset_upval = false
+            local has_shuffle = false
+
+            for _, uv in next, upvs do
+                if uv == renv_rawget then
+                    has_rawget_upval = true
+                elseif uv == renv_rawset then
+                    has_rawset_upval = true
+                elseif type(uv) == "function" and islclosure(uv) then
+                    local ok_c, consts = pcall(getconstants, uv)
+                    if ok_c and consts and table.find(consts, 90001) then
+                        has_shuffle = true
+                    end
+                end
+            end
+
+            if has_rawget_upval and has_rawset_upval and not has_shuffle then
+                update_function = value
+                break
+            end
+        end
+
+        local function replicate_handshake()
+            task.wait()
+
+            shuffle_function(ac_long_string, pass_table, 1750, 1750, 1655, ac_long_string, 1761, 1888, 1767)
+            shuffle_function(ac_long_string, pass_table, 1645, 1765, 1623, ac_long_string, 1714, 1881, 1656)
+
+            secondary_remote.Name = target_remote.Name
+            secondary_remote:FireServer(
+                content_uri,
+                secondary_shuffle(ac_long_string, bypass_state and fail_table_a or fail_table_b, 1767, 1676, 1854, ac_long_string, 1689, 1775, 1776),
+                nil
+            )
+
+            target_remote:FireServer(
+                content_uri,
+                shuffle_function(ac_long_string, bypass_state and pass_table or fail_table_a, 1750, 1750, 1655, ac_long_string, 1761, 1888, 1767),
+                nil
+            )
+
+            shuffle_function(ac_long_string, pass_table, 1650, 1749, 1853, ac_long_string, 1741, 1761, 1856)
+
+            secondary_remote.Name = ""
+        end
+
+        local old_handshake = nil
+        old_handshake = hookfunction(handshake_function, function(identifier, ...)
+            if not is_setup then
+                return old_handshake(identifier, ...)
+            end
+
+            if identifier ~= content_uri then
+                return
+            end
+
+            replicate_handshake()
+        end)
+
+        if update_function then
+            local old_update = nil
+            old_update = hookfunction(update_function, function(identifier, new_state, new_vals)
+                if not is_setup then
+                    return old_update(identifier, new_state, new_vals)
+                end
+
+                if identifier ~= content_uri then
+                    return old_update(identifier, new_state, new_vals)
+                end
+
+                if type(new_vals) == "table" and pass_table then
+                    local inner = rawget(pass_table, 1)
+                    if inner then
+                        for i = 1, #new_vals do
+                            rawset(inner, i + 1, new_vals[i])
+                        end
+                    end
+                end
+
+                return old_update(identifier, new_state, new_vals)
+            end)
+        end
+
+        is_setup = true
+    end
+
+    return {
+        run = run
+    }
+
+end)
+
+register_module("core/gamepass", function()
+    local services = require("core/services")
+    local config = require("core/config")
+
+    local aural_hub = config.aural_hub
+
+    local function run()
+        task.spawn(function()
+            local rf = cloneref(game:GetService("ReplicatedFirst"))
+            local ok, local_save = pcall(require, rf:WaitForChild("LocalSave", 10))
+            if not ok or not local_save then return end
+
+            local old_owns = local_save.PlayerOwnsPass
+            local_save.PlayerOwnsPass = function(self, pass_id, ...)
+                if aural_hub.gamepasses.unlock_all then return true end
+                return old_owns(self, pass_id, ...)
+            end
+        end)
+    end
+
+    return {
+        run = run
+    }
+
+end)
+
+register_module("visuals/beam", function()
+    local services = require("core/services")
+    local config = require("core/config")
+
+    local state = config.state
+    local cached_color = nil
+
+    local update_beam = LPH_JIT(function(cf1, cf2, curve0, curve1, color)
+        local a0 = state.current_attachment_0
+        local a1 = state.current_attachment_1
+        local beam = state.current_beam
+
+        if not a0 or not a0.Parent then
+            a0 = Instance.new("Attachment")
+            a0.Name = "Attachment0"
+            a0.Parent = services.workspace.Terrain
+            state.current_attachment_0 = a0
+        end
+
+        if not a1 or not a1.Parent then
+            a1 = Instance.new("Attachment")
+            a1.Name = "Attachment1"
+            a1.Parent = services.workspace.Terrain
+            state.current_attachment_1 = a1
+        end
+
+        a0.WorldCFrame = cf1
+        a1.WorldCFrame = cf2
+
+        if not beam or not beam.Parent then
+            local base_color = color or Color3.fromRGB(255, 40, 0)
+            local h, s, v = Color3.toHSV(base_color)
+            local mid_color = Color3.fromHSV(h, math.max(s - 0.2, 0), math.min(v + 0.15, 1))
+            local tip_color = Color3.fromHSV(h, math.max(s - 0.5, 0), 1)
+            cached_color = base_color
+
+            beam = Instance.new("Beam")
+            beam.Attachment0 = a0
+            beam.Attachment1 = a1
+            beam.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0,    base_color),
+                ColorSequenceKeypoint.new(0.45, mid_color),
+                ColorSequenceKeypoint.new(1,    tip_color),
+            })
+            beam.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0,   0),
+                NumberSequenceKeypoint.new(0.6, 0.05),
+                NumberSequenceKeypoint.new(1,   0.35),
+            })
+            beam.Width0 = 4.5
+            beam.Width1 = 1.2
+            beam.FaceCamera = true
+            beam.Segments = 1750
+            beam.LightEmission = 1
+            beam.Brightness = 8
+            beam.TextureSpeed = 3
+            beam.Texture = "rbxassetid://18527302693"
+            beam.Name = "GroundBeam"
+            beam.Parent = services.workspace.Terrain
+            state.current_beam = beam
+        end
+
+        beam.CurveSize0 = curve0
+        beam.CurveSize1 = curve1
+
+        local base_color = color or Color3.fromRGB(255, 40, 0)
+        if cached_color ~= base_color then
+            cached_color = base_color
+            local h, s, v = Color3.toHSV(base_color)
+            local mid_color = Color3.fromHSV(h, math.max(s - 0.2, 0), math.min(v + 0.15, 1))
+            local tip_color = Color3.fromHSV(h, math.max(s - 0.5, 0), 1)
+            beam.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0,    base_color),
+                ColorSequenceKeypoint.new(0.45, mid_color),
+                ColorSequenceKeypoint.new(1,    tip_color),
+            })
+        end
+
+        return beam, a0, a1
+    end)
+
+    return {
+        update_beam = update_beam
+    }
+
+end)
+
+register_module("visuals/esp", function()
+    local services = require("core/services")
+    local config = require("core/config")
+    local helpers = require("utils/helpers")
+
+    local aural_hub = config.aural_hub
+    local state = config.state
+
+    local clear_esp = LPH_JIT(function()
+        for _, gui in pairs(state.receiver_esp_guis) do
+            pcall(function() gui:Destroy() end)
+        end
+        state.receiver_esp_guis = {}
+    end)
+
+    local closest_defender_dist = LPH_JIT(function(receiver)
+        local receiver_hrp
+        if helpers.is_bot(receiver.Name) then
+            receiver_hrp = receiver:FindFirstChild("HumanoidRootPart")
+        else
+            receiver_hrp = receiver.Character and receiver.Character:FindFirstChild("HumanoidRootPart")
+        end
+        if not receiver_hrp then return math.huge end
+
+        local closest_dist = math.huge
+        local local_player = services.local_player
+
+        for _, player in pairs(services.players:GetPlayers()) do
+            if player ~= local_player and player.Team ~= local_player.Team then
+                pcall(function()
+                    local def_char = player.Character
+                    if def_char then
+                        local def_hrp = def_char:FindFirstChild("HumanoidRootPart")
+                        if def_hrp then
+                            local dist = (def_hrp.Position - receiver_hrp.Position).Magnitude
+                            if dist < closest_dist then
+                                closest_dist = dist
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+        return closest_dist
+    end)
+
+    local is_receiver_open = LPH_JIT(function(receiver)
+        return closest_defender_dist(receiver) > aural_hub.qb_aimbot.min_open_distance
+    end)
+
+    local get_receivers = LPH_JIT(function()
+        local receivers = {}
+        local local_player = services.local_player
+
+        for _, player in pairs(services.players:GetPlayers()) do
+            if player ~= local_player and player.Team == local_player.Team then
+                local char = player.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    table.insert(receivers, { target = player, is_bot = false, hrp = char:FindFirstChild("HumanoidRootPart") })
+                end
+            end
+        end
+
+        local npc_folder = services.workspace:FindFirstChild("npcwr")
+        if npc_folder then
+            pcall(function()
+                for _, station in next, npc_folder:GetChildren() do
+                    for _, bot in next, station:GetChildren() do
+                        if bot:IsA("Model") and helpers.is_bot(bot.Name) then
+                            local hrp = bot:FindFirstChild("HumanoidRootPart")
+                            if hrp then
+                                table.insert(receivers, { target = bot, is_bot = true, hrp = hrp })
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+
+        return receivers
+    end)
+
+    return {
+        clear_esp = clear_esp,
+        closest_defender_dist = closest_defender_dist,
+        is_receiver_open = is_receiver_open,
+        get_receivers = get_receivers,
+    }
+
+end)
+
+register_module("visuals/fov", function()
+    local services = require("core/services")
+    local config = require("core/config")
+
+    local aural_hub = config.aural_hub
+    local state = config.state
+
+    local has_drawing_api = pcall(function() return Drawing end)
+
+    local update_fov_circle = LPH_JIT(function()
+        local fov = aural_hub.qb_aimbot.fov
+        local show = aural_hub.qb_aimbot.show_fov and aural_hub.qb_aimbot.enabled
+
+        if has_drawing_api then
+            if show then
+                if not state.fov_circle then
+                    state.fov_circle = Drawing.new("Circle")
+                    state.fov_circle.Thickness = 1.5
+                    state.fov_circle.NumSides = 64
+                    state.fov_circle.Filled = false
+                    state.fov_circle.Transparency = 0.8
+                end
+                state.fov_circle.Visible = true
+                state.fov_circle.Radius = fov
+                state.fov_circle.Color = aural_hub.qb_aimbot.prediction_color
+                state.fov_circle.Position = Vector2.new(services.mouse.X, services.mouse.Y)
+            else
+                if state.fov_circle then
+                    state.fov_circle.Visible = false
+                end
+            end
+        else
+            if show then
+                if not state.fov_circle_frame or not state.fov_circle_frame.Parent then
+                    local gui = Instance.new("ScreenGui")
+                    gui.Name = "FOVCircleGui"
+                    gui.ResetOnSpawn = false
+                    gui.IgnoreGuiInset = true
+                    gui.Parent = services.local_player.PlayerGui
+
+                    local frame = Instance.new("Frame")
+                    frame.Name = "FOVCircle"
+                    frame.BackgroundTransparency = 1
+                    frame.BorderSizePixel = 0
+                    frame.Parent = gui
+
+                    local stroke = Instance.new("UIStroke")
+                    stroke.Thickness = 1.5
+                    stroke.Color = aural_hub.qb_aimbot.prediction_color
+                    stroke.Transparency = 0.2
+                    stroke.Parent = frame
+
+                    local corner = Instance.new("UICorner")
+                    corner.CornerRadius = UDim.new(0.5, 0)
+                    corner.Parent = frame
+
+                    state.fov_circle_frame = frame
+                end
+                local diam = fov * 2
+                state.fov_circle_frame.Size = UDim2.new(0, diam, 0, diam)
+                state.fov_circle_frame.Position = UDim2.new(0, services.mouse.X - fov, 0, services.mouse.Y - fov)
+                state.fov_circle_frame.Visible = true
+                local stroke = state.fov_circle_frame:FindFirstChildOfClass("UIStroke")
+                if stroke then stroke.Color = aural_hub.qb_aimbot.prediction_color end
+            else
+                if state.fov_circle_frame then
+                    state.fov_circle_frame.Visible = false
+                end
+            end
+        end
+    end)
+
+    return {
+        update_fov_circle = update_fov_circle
+    }
+
+end)
+
+register_module("visuals/hud_cards", function()
+    local services = require("core/services")
+    local config = require("core/config")
+
+    local aural_hub = config.aural_hub
+    local state = config.state
+
+    local tween_service = game:GetService("TweenService")
+
+    local theme = {
+        accent        = Color3.fromRGB(176, 140, 255),
+        accent_dark   = Color3.fromRGB(62, 44, 118),
+        accent_soft   = Color3.fromRGB(226, 214, 255),
+        background    = Color3.fromRGB(19, 17, 23),
+        section       = Color3.fromRGB(28, 25, 34),
+        inset         = Color3.fromRGB(21, 19, 26),
+        badge         = Color3.fromRGB(41, 36, 54),
+        outline       = Color3.fromRGB(44, 40, 52),
+        text          = Color3.fromRGB(232, 229, 240),
+        text_bright   = Color3.fromRGB(255, 255, 255),
+        text_dim      = Color3.fromRGB(132, 126, 148),
+        text_disabled = Color3.fromRGB(78, 74, 90),
+        toggle_off    = Color3.fromRGB(40, 37, 48),
+        slider_track  = Color3.fromRGB(40, 37, 48),
+        slider_knob   = Color3.fromRGB(255, 255, 255),
+        font          = Enum.Font.Gotham,
+        font_medium   = Enum.Font.GothamMedium,
+        font_bold     = Enum.Font.GothamBold,
+    }
+
+    local metrics = {
+        window_radius  = 10,
+        section_radius = 8,
+        column_width   = 214,
+        column_gap     = 12,
+        window_pad     = 12,
+        row_gap        = 6,
+        text_size      = 13,
+        title_size     = 14,
+        badge_size     = 26,
+        tween          = 0.18,
+    }
+
+    local window_w = metrics.window_pad * 2 + metrics.column_width * 2 + metrics.column_gap
+
+    local function create(class, props, children)
+        local obj = Instance.new(class)
+        local parent
+        for k, v in next, props or {} do
+            if k == "Parent" then parent = v else obj[k] = v end
+        end
+        for _, child in next, children or {} do
+            child.Parent = obj
+        end
+        if parent then obj.Parent = parent end
+        return obj
+    end
+
+    local function frame(props)
+        local defaults = {
+            BorderSizePixel = 0,
+            BackgroundColor3 = theme.section,
+            Size = UDim2.fromScale(1, 1),
+        }
+        for k, v in next, props or {} do defaults[k] = v end
+        return create("Frame", defaults)
+    end
+
+    local function text(props)
+        local defaults = {
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Font = theme.font,
+            TextSize = metrics.text_size,
+            TextColor3 = theme.text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Center,
+            Size = UDim2.fromScale(1, 1),
+            Text = "",
+        }
+        for k, v in next, props or {} do defaults[k] = v end
+        return create("TextLabel", defaults)
+    end
+
+    local function corner(parent, r)
+        return create("UICorner", { CornerRadius = UDim.new(0, r), Parent = parent })
+    end
+
+    local function circle(parent)
+        return create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = parent })
+    end
+
+    local function stroke(parent, color, thickness, transparency)
+        return create("UIStroke", {
+            Color = color or theme.outline,
+            Thickness = thickness or 1,
+            Transparency = transparency or 0,
+            Parent = parent,
+        })
+    end
+
+    local function padding(parent, top, right, bottom, left)
+        return create("UIPadding", {
+            PaddingTop = UDim.new(0, top or 0),
+            PaddingRight = UDim.new(0, right or 0),
+            PaddingBottom = UDim.new(0, bottom or 0),
+            PaddingLeft = UDim.new(0, left or 0),
+            Parent = parent,
+        })
+    end
+
+    local function list(parent, spacing, direction, h_align, v_align)
+        return create("UIListLayout", {
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Padding = UDim.new(0, spacing or 0),
+            FillDirection = direction or Enum.FillDirection.Vertical,
+            HorizontalAlignment = h_align or Enum.HorizontalAlignment.Left,
+            VerticalAlignment = v_align or Enum.VerticalAlignment.Top,
+            Parent = parent,
+        })
+    end
+
+    local function gradient(parent, a, b, rotation)
+        return create("UIGradient", {
+            Color = ColorSequence.new(a, b),
+            Rotation = rotation or 0,
+            Parent = parent,
+        })
+    end
+
+    local function tween(obj, props, t)
+        local info = TweenInfo.new(t or metrics.tween, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+        local tw = tween_service:Create(obj, info, props)
+        tw:Play()
+        return tw
+    end
+
+    local function icon_part(parent, x, y, w, h, rotation, radius, role)
+        role = role or "Fore"
+        local layer = (role == "Cutout" and 3) or (role == "Top" and 4) or 2
+        local part = frame({
+            Parent = parent,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(x, y),
+            Size = UDim2.fromScale(w, h),
+            Rotation = rotation or 0,
+            ZIndex = layer,
+        })
+        part.Name = (role == "Top") and "Fore" or role
+        if radius and radius > 0 then
+            create("UICorner", { CornerRadius = UDim.new(radius, 0), Parent = part })
+        end
+        return part
+    end
+
+    local icons = {}
+
+    function icons.Target(parent)
+        icon_part(parent, 0.5, 0.5, 0.92, 0.92, 0, 0.5)
+        icon_part(parent, 0.5, 0.5, 0.66, 0.66, 0, 0.5, "Cutout")
+        icon_part(parent, 0.5, 0.5, 0.26, 0.26, 0, 0.5, "Top")
+        icon_part(parent, 0.5, 0.12, 0.14, 0.24, 0, 0.5, "Top")
+        icon_part(parent, 0.5, 0.88, 0.14, 0.24, 0, 0.5, "Top")
+        icon_part(parent, 0.12, 0.5, 0.24, 0.14, 0, 0.5, "Top")
+        icon_part(parent, 0.88, 0.5, 0.24, 0.14, 0, 0.5, "Top")
+    end
+
+    function icons.Eye(parent)
+        icon_part(parent, 0.5, 0.5, 1, 0.56, 0, 0.5)
+        icon_part(parent, 0.5, 0.5, 0.36, 0.36, 0, 0.5, "Cutout")
+        icon_part(parent, 0.5, 0.5, 0.16, 0.16, 0, 0.5, "Top")
+    end
+
+    function icons.Chevron(parent)
+        icon_part(parent, 0.35, 0.5, 0.16, 0.56, -45, 0.5)
+        icon_part(parent, 0.65, 0.5, 0.16, 0.56, 45, 0.5)
+    end
+
+    local function update_icon(icon_frame, fore, cutout, animate)
+        for _, part in next, icon_frame:GetDescendants() do
+            local role = part.Name
+            if role == "Fore" or role == "Cutout" then
+                local color = (role == "Cutout") and cutout or fore
+                if color then
+                    if animate then
+                        tween(part, { BackgroundColor3 = color })
+                    else
+                        part.BackgroundColor3 = color
+                    end
+                end
+            end
+        end
+    end
+
+    local function register_icon(parent, name, size, fore, cutout, position, anchor)
+        local holder = frame({
+            Name = "Icon",
+            Parent = parent,
+            BackgroundTransparency = 1,
+            Size = size,
+            Position = position or UDim2.new(),
+            AnchorPoint = anchor or Vector2.new(),
+        })
+        icons[name](holder)
+        update_icon(holder, fore, cutout, false)
+        return holder
+    end
+
+    local function register_row(card, height, order)
+        return frame({
+            Name = "Row",
+            Parent = card,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, height),
+            LayoutOrder = order,
+        })
+    end
+
+    local function register_header(card, title_text, icon_name)
+        local header = register_row(card, metrics.badge_size, 0)
+
+        local badge = frame({
+            Name = "Badge",
+            Parent = header,
+            BackgroundColor3 = theme.badge,
+            Size = UDim2.fromOffset(metrics.badge_size, metrics.badge_size),
+        })
+        corner(badge, 7)
+        stroke(badge, theme.accent, 1, 0.72)
+        register_icon(badge, icon_name, UDim2.fromOffset(14, 14), theme.accent, theme.badge, UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5))
+
+        text({
+            Parent = header,
+            Text = title_text,
+            Font = theme.font_bold,
+            TextSize = metrics.title_size,
+            TextColor3 = theme.text_bright,
+            Position = UDim2.new(0, metrics.badge_size + 10, 0, 0),
+            Size = UDim2.new(1, -(metrics.badge_size + 10), 1, 0),
+        })
+
+        local divider = frame({
+            Name = "Divider",
+            Parent = card,
+            BackgroundColor3 = theme.outline,
+            Size = UDim2.new(1, 0, 0, 1),
+            LayoutOrder = 1,
+        })
+
+        return header, divider
+    end
+
+    local function register_card(column, name, title_text, icon_name)
+        local card = frame({
+            Name = name,
+            Parent = column,
+            BackgroundColor3 = theme.section,
+            Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+        })
+        corner(card, metrics.section_radius)
+        padding(card, 10, 10, 12, 10)
+        list(card, metrics.row_gap)
+        register_header(card, title_text, icon_name)
+        return card
+    end
+
+    local function register_select(card, order, label_text, pill_width)
+        local row = register_row(card, 30, order)
+
+        local label = text({
+            Parent = row,
+            Text = label_text,
+            Size = UDim2.new(1, -(pill_width + 8), 1, 0),
+            TextTruncate = Enum.TextTruncate.AtEnd,
+        })
+
+        local pill = frame({
+            Name = "Pill",
+            Parent = row,
+            BackgroundColor3 = theme.inset,
+            AnchorPoint = Vector2.new(1, 0.5),
+            Position = UDim2.new(1, 0, 0.5, 0),
+            Size = UDim2.new(0, pill_width, 0, 26),
+        })
+        corner(pill, 6)
+        stroke(pill, theme.outline, 1, 0)
+
+        local value = text({
+            Parent = pill,
+            Text = "--",
+            Font = theme.font_medium,
+            TextSize = 12,
+            TextColor3 = theme.text,
+            Position = UDim2.new(0, 10, 0, 0),
+            Size = UDim2.new(1, -34, 1, 0),
+            TextTruncate = Enum.TextTruncate.AtEnd,
+        })
+
+        local chevron = register_icon(pill, "Chevron", UDim2.fromOffset(10, 10), theme.text, nil, UDim2.new(1, -10, 0.5, 0), Vector2.new(1, 0.5))
+
+        return { row = row, label = label, pill = pill, value = value, chevron = chevron }
+    end
+
+    local function register_slider(card, order, label_text)
+        local row = register_row(card, 33, order)
+
+        local label = text({
+            Parent = row,
+            Text = label_text,
+            Size = UDim2.new(1, -90, 0, 16),
+            TextTruncate = Enum.TextTruncate.AtEnd,
+        })
+        local value = text({
+            Parent = row,
+            Text = "--",
+            Font = theme.font_medium,
+            TextColor3 = theme.text_dim,
+            AnchorPoint = Vector2.new(1, 0),
+            Position = UDim2.new(1, 0, 0, 0),
+            Size = UDim2.new(0, 90, 0, 16),
+            TextXAlignment = Enum.TextXAlignment.Right,
+        })
+
+        local track = frame({
+            Parent = row,
+            BackgroundColor3 = theme.slider_track,
+            Position = UDim2.new(0, 0, 0, 25),
+            Size = UDim2.new(1, 0, 0, 4),
+        })
+        circle(track)
+
+        local fill = frame({
+            Parent = track,
+            BackgroundColor3 = Color3.new(1, 1, 1),
+            Size = UDim2.fromScale(0, 1),
+            ZIndex = 2,
+        })
+        circle(fill)
+        gradient(fill, theme.accent, theme.accent_soft, 0)
+
+        local knob = frame({
+            Parent = track,
+            BackgroundColor3 = theme.slider_knob,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(0, 0.5),
+            Size = UDim2.fromOffset(12, 12),
+            ZIndex = 3,
+        })
+        circle(knob)
+
+        local element = { row = row, label = label, value = value, track = track, fill = fill, knob = knob, percent = -1 }
+
+        function element:update(display, pct)
+            self.value.Text = display
+            pct = math.clamp(pct or 0, 0, 1)
+            if math.abs(pct - self.percent) > 0.001 then
+                self.percent = pct
+                tween(self.fill, { Size = UDim2.fromScale(pct, 1) })
+                tween(self.knob, { Position = UDim2.fromScale(pct, 0.5) })
+            end
+        end
+
+        return element
+    end
+
+    local function register_toggle(card, order, label_text)
+        local row = register_row(card, 24, order)
+
+        local label = text({
+            Parent = row,
+            Text = label_text,
+            Size = UDim2.new(1, -44, 1, 0),
+            TextTruncate = Enum.TextTruncate.AtEnd,
+        })
+
+        local pill = frame({
+            Name = "Toggle",
+            Parent = row,
+            BackgroundColor3 = theme.toggle_off,
+            AnchorPoint = Vector2.new(1, 0.5),
+            Position = UDim2.new(1, 0, 0.5, 0),
+            Size = UDim2.fromOffset(34, 18),
+        })
+        circle(pill)
+
+        local knob = frame({
+            Parent = pill,
+            BackgroundColor3 = theme.text_dim,
+            AnchorPoint = Vector2.new(0, 0.5),
+            Position = UDim2.new(0, 3, 0.5, 0),
+            Size = UDim2.fromOffset(12, 12),
+            ZIndex = 2,
+        })
+        circle(knob)
+
+        local element = { row = row, label = label, pill = pill, knob = knob, state = nil }
+
+        function element:update(on)
+            if self.state == on then return end
+            self.state = on
+            tween(self.pill, { BackgroundColor3 = on and theme.accent or theme.toggle_off })
+            tween(self.knob, {
+                BackgroundColor3 = on and theme.text_bright or theme.text_dim,
+                Position = on and UDim2.new(1, -15, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
+            })
+            tween(self.label, { TextColor3 = on and theme.text or theme.text_dim })
+        end
+
+        return element
+    end
+
+    local function register_cards()
+        if state.cards then return end
+
+        local gui = create("ScreenGui", {
+            Name = "Aural Hub",
+            ResetOnSpawn = false,
+            ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+            DisplayOrder = 100,
+            IgnoreGuiInset = false,
+        })
+        gui.Parent = gethui and gethui() or services.players.LocalPlayer.PlayerGui
+
+        local window = frame({
+            Name = "Window",
+            Parent = gui,
+            BackgroundColor3 = theme.background,
+            AnchorPoint = Vector2.new(0.5, 0),
+            Position = UDim2.new(0.5, 0, 0, 10),
+            Size = UDim2.new(0, window_w, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+        })
+        corner(window, metrics.window_radius)
+        stroke(window, theme.outline, 1, 0)
+        padding(window, metrics.window_pad, metrics.window_pad, metrics.window_pad, metrics.window_pad)
+
+        local left = frame({
+            Name = "Left",
+            Parent = window,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(0, metrics.column_width, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+        })
+        list(left, metrics.column_gap)
+
+        local right = frame({
+            Name = "Right",
+            Parent = window,
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0, metrics.column_width + metrics.column_gap, 0, 0),
+            Size = UDim2.new(0, metrics.column_width, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+        })
+        list(right, metrics.column_gap)
+
+        local throw_card = register_card(left, "ThrowCard", "Throw", "Target")
+        local mode = register_select(throw_card, 2, "Throw Type", 110)
+        local power = register_slider(throw_card, 3, "Power")
+        local angle = register_slider(throw_card, 4, "Angle")
+        local airtime = register_slider(throw_card, 5, "Air Time")
+
+        local target_card = register_card(right, "TargetCard", "Targeting", "Eye")
+        local open = register_toggle(target_card, 2, "Receiver Open")
+        local player = register_select(target_card, 3, "Player", 118)
+        local route = register_select(target_card, 4, "Route", 118)
+
+        local status_dot = frame({
+            Name = "StatusDot",
+            Parent = player.pill,
+            BackgroundColor3 = theme.accent,
+            AnchorPoint = Vector2.new(0, 0.5),
+            Position = UDim2.new(0, 9, 0.5, 0),
+            Size = UDim2.fromOffset(6, 6),
+            ZIndex = 2,
+        })
+        circle(status_dot)
+        player.value.Position = UDim2.new(0, 20, 0, 0)
+        player.value.Size = UDim2.new(1, -42, 1, 0)
+
+        state.cards = gui
+        state.card_container = window
+        state.mode_card = throw_card
+        state.power_card = throw_card
+        state.angle_card = throw_card
+        state.airtime_card = throw_card
+        state.target_bar = target_card
+        state.route_badge = target_card
+
+        state.mode_value = mode.value
+        state.power_value = power.value
+        state.angle_value = angle.value
+        state.airtime_value = airtime.value
+        state.target_text = player.value
+        state.route_text = route.value
+        state.status_dot = status_dot
+
+        state.hud_elements = {
+            power = power,
+            angle = angle,
+            airtime = airtime,
+            open = open,
+        }
+    end
+
+    local function fmt(n, decimals)
+        if type(n) ~= "number" then return tostring(n) end
+        local mult = 10 ^ (decimals or 0)
+        return tostring(math.floor(n * mult + 0.5) / mult)
+    end
+
+    local function update_aimbot_cards(throw_type, power, angle_deg, flight_time, is_open, player_name, route_name)
+        if not aural_hub.qb_aimbot.enabled then
+            if state.cards then state.cards.Enabled = false end
+            return
+        end
+
+        register_cards()
+        state.cards.Enabled = true
+
+        local el = state.hud_elements
+
+        state.mode_value.Text = tostring(throw_type)
+
+        local power_n = tonumber(power) or 0
+        el.power:update(fmt(power_n, 0), power_n / 100)
+
+        local angle_n = tonumber(angle_deg) or 0
+        el.angle:update(fmt(angle_n, 0) .. "\194\176", angle_n / 90)
+
+        local air_n = tonumber(flight_time) or 0
+        el.airtime:update(fmt(air_n, 2) .. "s", air_n / 5)
+
+        el.open:update(is_open == true)
+
+        state.target_text.Text = tostring(player_name or "None")
+        state.route_text.Text = tostring(route_name or "None")
+
+        local dot_color = is_open and theme.accent or theme.text_disabled
+        if state.status_dot.BackgroundColor3 ~= dot_color then
+            tween(state.status_dot, { BackgroundColor3 = dot_color })
+        end
+        state.target_text.TextColor3 = is_open and theme.text or theme.text_dim
+        state.route_text.TextColor3 = is_open and theme.text or theme.text_dim
+    end
+
+    local function update_card(throw_type, power, angle_deg, flight_time, card_position, is_open, player_name, route_name)
+        update_aimbot_cards(throw_type, power, angle_deg, flight_time, is_open, player_name, route_name)
+    end
+
+    return {
+        update_aimbot_cards = update_aimbot_cards,
+        update_card = update_card
+    }
+
+end)
+
+register_module("features/catching/magnets", function()
+    local services = require("core/services")
+    local config = require("core/config")
+    local helpers = require("utils/helpers")
+
+    local aural_hub = config.aural_hub
+    local state = config.state
+    local refs = services.refs
+
+    local is_held_by_player = LPH_JIT(function(football)
+        if not football then return false end
+        local char = football:FindFirstAncestorOfClass("Model")
+        if not char then return false end
+        return char:FindFirstChildOfClass("Humanoid") ~= nil and char ~= refs.get_char()
+    end)
+
+    local fire_touch_interest = LPH_JIT(function(part2, part1, touch_state, custom_radius)
+        if not part1 or not part2 or is_held_by_player(part1) then return end
+
+        local offset = part2.Position - part1.Position
+        local distance = offset.Magnitude
+
+        if distance <= 0 then return end
+
+        local speed = part1.Velocity.Magnitude
+        local radius = custom_radius or aural_hub.catching.customizable_radius
+        local norm_dist = (radius > 0) and math.clamp(distance / radius, 0, 1) or 1
+        local dist_factor = math.clamp(1 - norm_dist, 0, 1)
+        local speed_factor = math.clamp(speed / 100, 0, 1)
+
+        local min_pull = 10
+        local max_pull = 30
+        local pull_percent = math.ceil(
+            math.pow(dist_factor * speed_factor, 2) * (max_pull - min_pull) + min_pull
+        ) / 100
+
+        firetouchinterest(part2, part1, touch_state)
+    end)
+
+    local function run()
+        config.threads.football_magnets = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait() do
+                if not aural_hub.catching.magnets or not refs.get_char() or not refs.get_hrp() then continue end
+                local football = helpers.get_closest_football()
+                if not football then continue end
+
+                local is_held = (football.Parent:FindFirstChild("Humanoid") ~= nil) or
+                                (football.Parent:IsA("Tool") and football.Parent.Parent:FindFirstChild("Humanoid") ~= nil)
+                if is_held then continue end
+
+                local raw_radius = aural_hub.catching.customizable_radius
+                local radius = aural_hub.catching.mag_enhancer and (raw_radius * aural_hub.catching.mag_enhancer_multiplier) or raw_radius
+
+                local min_tele = 10
+                local max_tele = 30
+
+                local catch_part = helpers.get_random_catch_part()
+                if not catch_part then continue end
+
+                local dist = (football.Position - catch_part.Position).Magnitude
+                local norm_dist = dist / radius
+                local dist_factor = math.clamp(1 - norm_dist, 0, 1)
+
+                local speed = football.Velocity.Magnitude
+                local speed_factor = math.clamp(speed / 100, 0, 1)
+
+                local calcs = math.ceil(
+                    math.pow(dist_factor * speed_factor, 2) *
+                    (max_tele - min_tele) + min_tele
+                )
+
+                local delay = aural_hub.catching.customizable_delay * (1 - speed_factor) * (1 + norm_dist)
+
+                if dist <= radius then
+                    for i = 1, calcs do
+                        if not football or not football.Parent then break end
+                        local current_dist = (football.Position - catch_part.Position).Magnitude
+                        if current_dist > radius then break end
+                        if helpers.character_has_football() then break end
+
+                        firetouchinterest(catch_part, football, 0)
+                        task.wait()
+                        firetouchinterest(catch_part, football, 1)
+
+                        catch_part.Position = football.Position
+                    end
+                    helpers.fire_catch()
+                    task.wait(delay)
+                end
+            end
+        end))
+
+        config.threads.show_mag_hitbox = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait(0.1) do
+                local football = helpers.get_closest_football()
+                if aural_hub.catching.show_mag_hitbox and aural_hub.catching.magnets and football then
+                    if not state.magnet_hitbox_part or not state.magnet_hitbox_part.Parent then
+                        local p = Instance.new("Part")
+                        p.Shape = Enum.PartType.Ball
+                        p.CastShadow = false
+                        p.Anchored = true
+                        p.CanCollide = false
+                        p.Transparency = 0.7
+                        p.Color = Color3.fromRGB(0, 170, 255)
+                        p.Material = Enum.Material.ForceField
+                        p.Name = "MagnetHitbox"
+                        p.Parent = services.workspace
+                        state.magnet_hitbox_part = p
+                    end
+                    local radius = aural_hub.catching.customizable_radius
+                    state.magnet_hitbox_part.Size = Vector3.new(radius * 2, radius * 2, radius * 2)
+                    state.magnet_hitbox_part.Position = football.Position
+                else
+                    if state.magnet_hitbox_part and state.magnet_hitbox_part.Parent then
+                        state.magnet_hitbox_part:Destroy()
+                        state.magnet_hitbox_part = nil
+                    end
+                end
+            end
+        end))
+
+        config.threads.pull_vector = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait(0.1) do
+                local hrp = refs.get_hrp()
+                if not aural_hub.catching.pull_vector or not hrp then continue end
+                local football = helpers.get_closest_football()
+
+                if football then
+                    pcall(function()
+                        local dist = (hrp.Position - football.Position).Magnitude
+                        local direction = (football.Position - hrp.Position).Unit
+
+                        if dist <= aural_hub.catching.pull_vector_radius then
+                            hrp.Velocity = direction * math.min((aural_hub.catching.pull_vector_speed * 25), dist)
+                        end
+                    end)
+                end
+            end
+        end))
+
+        config.threads.dive_vector = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait() do
+                local hum = refs.get_humanoid()
+                local hrp = refs.get_hrp()
+                if not aural_hub.catching.dive_vector or not hum or not hrp then continue end
+
+                local football = helpers.get_closest_football()
+                if not football then continue end
+
+                pcall(function()
+                    local state_val = hum:GetState()
+                    if state_val == Enum.HumanoidStateType.FallingDown or state_val == Enum.HumanoidStateType.Physics then
+                        local dist = (football.Position - hrp.Position).Magnitude
+                        if dist <= aural_hub.catching.dive_vector_radius then
+                            local dir = (football.Position - hrp.Position).Unit
+                            hrp.Velocity = dir * 60
+                        end
+                    end
+                end)
+            end
+        end))
+    end
+
+    return {
+        run = run,
+        fire_touch_interest = fire_touch_interest
+    }
+
+end)
+
+register_module("features/catching/enhancements", function()
+    local services = require("core/services")
+    local config = require("core/config")
+    local helpers = require("utils/helpers")
+
+    local aural_hub = config.aural_hub
+    local refs = services.refs
+
+    local function update_hand_size()
+        local char = refs.get_char()
+        if not char then return end
+
+        local size_val = aural_hub.catching.hand_size or 2
+        for _, name in next, helpers.get_catch_part_names() do
+            local part = char:FindFirstChild(name)
+            if part and part:IsA("BasePart") then
+                part.Size = Vector3.new(size_val, size_val, size_val)
+                part.Transparency = aural_hub.catching.show_hand_hitbox and 0.5 or 1
+                part.CanCollide = false
+            end
+        end
+    end
+
+    local function run()
+        config.threads.auto_jump = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait(0.05) do
+                if not aural_hub.catching.auto_jump then continue end
+                local hrp = refs.get_hrp()
+                local hum = refs.get_humanoid()
+                if not hrp or not hum then continue end
+
+                local football = helpers.get_closest_football()
+                if football then
+                    local dist = (football.Position - hrp.Position).Magnitude
+                    local dy = football.Position.Y - hrp.Position.Y
+                    if dist <= aural_hub.catching.auto_jump_radius
+                       and dy > 0 and dy <= aural_hub.catching.auto_jump_height then
+                        hum.Jump = true
+                    end
+                end
+            end
+        end))
+
+        config.threads.resizer = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait(0.5) do
+                pcall(update_hand_size)
+
+                pcall(function()
+                    local football = helpers.get_closest_football()
+                    if football then
+                        local size_val = aural_hub.catching.ball_size or 2
+                        football.Size = Vector3.new(size_val, size_val, size_val)
+                        football.CanCollide = false
+                    end
+                end)
+            end
+        end))
+
+        config.threads.reset_on_catch = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait() do
+                local hum = refs.get_humanoid()
+                if aural_hub.physics.reset_on_catch and helpers.character_has_football() and hum then
+                    task.wait(aural_hub.physics.reset_on_catch_duration)
+                    if refs.get_humanoid() and helpers.character_has_football() then
+                        refs.get_humanoid().Health = 0
+                    end
+                end
+            end
+        end))
+
+        services.local_player.CharacterAdded:Connect(function()
+            task.wait(0.5)
+            pcall(update_hand_size)
+        end)
+    end
+
+    return {
+        run = run
+    }
+
+end)
+
+register_module("features/defense/tackle", function()
+    local services = require("core/services")
+    local config = require("core/config")
+    local helpers = require("utils/helpers")
+
+    local aural_hub = config.aural_hub
+    local refs = services.refs
+
+    local function teleport_to_carrier()
+        local hrp = refs.get_hrp()
+        if not hrp then return end
+
+        local ball_carrier = helpers.get_ball_carrier()
+        if ball_carrier then
+            pcall(function()
+                local dist = (ball_carrier.HumanoidRootPart.Position - hrp.Position).Magnitude
+
+                if aural_hub.physics.click_tackle_aimbot and dist <= aural_hub.physics.click_tackle_aimbot_radius then
+                    hrp.CFrame = ball_carrier.HumanoidRootPart.CFrame
+                    return
+                end
+
+                if aural_hub.physics.tackle_reach and dist <= aural_hub.physics.tackle_reach_radius then
+                    hrp.CFrame = ball_carrier.HumanoidRootPart.CFrame
+                end
+            end)
+        end
+    end
+
+    local function run()
+        services.mouse.Button1Down:Connect(function()
+            teleport_to_carrier()
+        end)
+
+        if services.is_mobile then
+            if config.state.mobile_buttons.Tackle then
+                config.state.mobile_buttons.Tackle.MouseButton1Click:Connect(function()
+                    teleport_to_carrier()
+                end)
+            end
+        end
+
+        services.user_input_service.InputBegan:Connect(function(input, gp)
+            if gp then return end
+            if input.KeyCode == Enum.KeyCode.E then
+                if aural_hub.physics.tackle_reach then
+                    teleport_to_carrier()
+                end
+            end
+        end)
+
+        local blok_backup = nil
+
+        local function get_blok_part()
+            local char = refs.get_char()
+            return char and char:FindFirstChild("BlokPart")
+        end
+
+        local function restore_blok_part()
+            if blok_backup and blok_backup.part and blok_backup.part.Parent then
+                pcall(function()
+                    blok_backup.part.Size = blok_backup.size
+                    blok_backup.part.Transparency = blok_backup.transparency
+                end)
+            end
+            blok_backup = nil
+        end
+
+        config.threads.block_extender = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait(0.1) do
+                local blok_part = get_blok_part()
+
+                if aural_hub.physics.block_extender and blok_part and blok_part:IsA("BasePart") then
+                    if not blok_backup or blok_backup.part ~= blok_part then
+                        restore_blok_part()
+                        blok_backup = {
+                            part = blok_part,
+                            size = blok_part.Size,
+                            transparency = blok_part.Transparency,
+                        }
+                    end
+
+                    local reach = aural_hub.physics.block_extender_reach
+                    blok_part.Size = Vector3.new(reach, reach, reach)
+                    blok_part.Transparency = aural_hub.physics.block_extender_transparency
+                else
+                    restore_blok_part()
+                end
+            end
+        end))
+    end
+
+    return {
+        run = run
+    }
+
+end)
+
+register_module("features/defense/swat", function()
+    local services = require("core/services")
+    local config = require("core/config")
+    local helpers = require("utils/helpers")
+
+    local aural_hub = config.aural_hub
+    local refs = services.refs
+
+    local function check_swat_reach()
+        if not aural_hub.physics.swat_reach then return end
+        local hrp = refs.get_hrp()
+        if not hrp then return end
+
+        local football = helpers.get_closest_football()
+        if football then
+            pcall(function()
+                local dist = (football.Position - hrp.Position).Magnitude
+                if dist <= aural_hub.physics.swat_reach_radius then
+                    hrp.CFrame = CFrame.new(football.Position)
+                end
+            end)
+        end
+    end
+
+    local function run()
+        services.user_input_service.InputBegan:Connect(function(input, gp)
+            if gp then return end
+            if input.KeyCode == Enum.KeyCode.R then
+                check_swat_reach()
+            end
+        end)
+
+        if services.is_mobile and config.state.mobile_buttons.Swat then
+            config.state.mobile_buttons.Swat.MouseButton1Click:Connect(function()
+                check_swat_reach()
+                pcall(function()
+                    services.virtual_input_manager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+                    task.wait(0.01)
+                    services.virtual_input_manager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+                end)
+            end)
+        end
+
+        config.threads.auto_swat = task.spawn(LPH_NO_VIRTUALIZE(function()
+            local last_swat_tick = 0
+            while task.wait() do
+                if aural_hub.automatics.auto_swat and (tick() - last_swat_tick > 0.25) then
+                    local hrp = refs.get_hrp()
+                    if hrp then
+                        local football = helpers.get_closest_football()
+                        if football then
+                            pcall(function()
+                                local dist = (hrp.Position - football.Position).Magnitude
+                                if dist <= aural_hub.automatics.auto_swat_radius then
+                                    last_swat_tick = tick()
+                                    services.virtual_input_manager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+                                    services.virtual_input_manager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+                                end
+                            end)
+                        end
+                    end
+                end
+            end
+        end))
+    end
+
+    return {
+        run = run
+    }
+
+end)
+
+register_module("features/movement/physics", function()
+    local services = require("core/services")
+    local config = require("core/config")
+
+    local aural_hub = config.aural_hub
+    local state = config.state
+    local refs = services.refs
+
+    local is_diving_state = false
+    local dive_body_force = nil
+
+    local get_character_mass = LPH_JIT(function(char)
+        local mass = 0
+        for _, part in next, char:GetChildren() do
+            if part:IsA("BasePart") then
+                mass = mass + part:GetMass()
+            end
+        end
+        return mass > 0 and mass or 14
+    end)
+
+    local function run()
+        if services.is_mobile then
+            if state.mobile_buttons.FlyUp then
+                state.mobile_buttons.FlyUp.MouseButton1Down:Connect(function() state.fly_keys_held.space = true end)
+                state.mobile_buttons.FlyUp.MouseButton1Up:Connect(function() state.fly_keys_held.space = false end)
+            end
+            if state.mobile_buttons.FlyDown then
+                state.mobile_buttons.FlyDown.MouseButton1Down:Connect(function() state.fly_keys_held.shift = true end)
+                state.mobile_buttons.FlyDown.MouseButton1Up:Connect(function() state.fly_keys_held.shift = false end)
+            end
+        end
+
+        services.user_input_service.InputBegan:Connect(LPH_NO_VIRTUALIZE(function(input, gp)
+            if gp then return end
+            if input.KeyCode == Enum.KeyCode.W then state.fly_keys_held.w = true end
+            if input.KeyCode == Enum.KeyCode.A then state.fly_keys_held.a = true end
+            if input.KeyCode == Enum.KeyCode.S then state.fly_keys_held.s = true end
+            if input.KeyCode == Enum.KeyCode.D then state.fly_keys_held.d = true end
+            if input.KeyCode == Enum.KeyCode.Space then state.fly_keys_held.space = true end
+            if input.KeyCode == Enum.KeyCode.LeftShift then state.fly_keys_held.shift = true end
+        end))
+
+        services.user_input_service.InputEnded:Connect(LPH_NO_VIRTUALIZE(function(input, gp)
+            if input.KeyCode == Enum.KeyCode.W then state.fly_keys_held.w = false end
+            if input.KeyCode == Enum.KeyCode.A then state.fly_keys_held.a = false end
+            if input.KeyCode == Enum.KeyCode.S then state.fly_keys_held.s = false end
+            if input.KeyCode == Enum.KeyCode.D then state.fly_keys_held.d = false end
+            if input.KeyCode == Enum.KeyCode.Space then state.fly_keys_held.space = false end
+            if input.KeyCode == Enum.KeyCode.LeftShift then state.fly_keys_held.shift = false end
+        end))
+
+        config.threads.fly = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait() do
+                local hrp = refs.get_hrp()
+                local hum = refs.get_humanoid()
+                if aural_hub.player.fly and hrp and hum then
+                    if not state.fly_body_velocity or not state.fly_body_velocity.Parent then
+                        state.fly_body_velocity = Instance.new("BodyVelocity")
+                        state.fly_body_velocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                        state.fly_body_velocity.Velocity = Vector3.zero
+                        state.fly_body_velocity.Parent = hrp
+                    end
+                    if not state.fly_body_gyro or not state.fly_body_gyro.Parent then
+                        state.fly_body_gyro = Instance.new("BodyGyro")
+                        state.fly_body_gyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+                        state.fly_body_gyro.D = 200
+                        state.fly_body_gyro.P = 10000
+                        state.fly_body_gyro.Parent = hrp
+                    end
+
+                    local fly_speed = aural_hub.player.fly_speed
+                    local cam_cf = services.camera.CFrame
+                    local move_dir = Vector3.zero
+
+                    if services.is_mobile then
+                        local md = hum.MoveDirection
+                        if md.Magnitude > 0 then
+                            move_dir = move_dir + Vector3.new(md.X, 0, md.Z).Unit * fly_speed
+                        end
+                    else
+                        if state.fly_keys_held.w then move_dir = move_dir + cam_cf.LookVector end
+                        if state.fly_keys_held.s then move_dir = move_dir - cam_cf.LookVector end
+                        if state.fly_keys_held.d then move_dir = move_dir + cam_cf.RightVector end
+                        if state.fly_keys_held.a then move_dir = move_dir - cam_cf.RightVector end
+                    end
+
+                    if state.fly_keys_held.space then move_dir = move_dir + Vector3.new(0, 1, 0) end
+                    if state.fly_keys_held.shift then move_dir = move_dir - Vector3.new(0, 1, 0) end
+
+                    if move_dir.Magnitude > 0 then
+                        state.fly_body_velocity.Velocity = move_dir.Unit * fly_speed
+                    else
+                        state.fly_body_velocity.Velocity = Vector3.zero
+                    end
+
+                    state.fly_body_gyro.CFrame = cam_cf
+                    hum:ChangeState(Enum.HumanoidStateType.Flying)
+                else
+                    if state.fly_body_velocity and state.fly_body_velocity.Parent then
+                        state.fly_body_velocity:Destroy()
+                        state.fly_body_velocity = nil
+                    end
+                    if state.fly_body_gyro and state.fly_body_gyro.Parent then
+                        state.fly_body_gyro:Destroy()
+                        state.fly_body_gyro = nil
+                    end
+                end
+            end
+        end))
+
+        config.threads.cframe_speed = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait() do
+                local hum = refs.get_humanoid()
+                local hrp = refs.get_hrp()
+                if aural_hub.player.cframe_speed and hum and hrp and not aural_hub.player.fly then
+                    if hum.MoveDirection.Magnitude > 0 then
+                        hrp.CFrame = hrp.CFrame + hum.MoveDirection * (aural_hub.player.cf_speed / 58.5)
+                    end
+                end
+            end
+        end))
+
+        config.threads.dive_and_boost_physics = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait() do
+                local hum = refs.get_humanoid()
+                local hrp = refs.get_hrp()
+                local char = refs.get_char()
+
+                if not hum or not hrp or not char then
+                    if dive_body_force then
+                        pcall(function() dive_body_force:Destroy() end)
+                        dive_body_force = nil
+                    end
+                    is_diving_state = false
+                    continue
+                end
+
+                if aural_hub.player.dive_physics then
+                    local current_state = hum:GetState()
+                    local is_diving = (current_state == Enum.HumanoidStateType.FallingDown or current_state == Enum.HumanoidStateType.Physics)
+
+                    if is_diving then
+                        if not dive_body_force or not dive_body_force.Parent then
+                            dive_body_force = Instance.new("BodyForce")
+                            dive_body_force.Name = "DiveGravityBypasser"
+                            dive_body_force.Parent = hrp
+                        end
+
+                        local mass = get_character_mass(char)
+                        local gravity_counter_force = mass * services.workspace.Gravity * (1 - aural_hub.player.dive_gravity_multiplier)
+                        dive_body_force.Force = Vector3.new(0, gravity_counter_force, 0)
+
+                        if not is_diving_state then
+                            is_diving_state = true
+                            local current_vel = hrp.Velocity
+                            hrp.Velocity = Vector3.new(
+                                current_vel.X * aural_hub.player.dive_speed_multiplier,
+                                current_vel.Y,
+                                current_vel.Z * aural_hub.player.dive_speed_multiplier
+                            )
+                        end
+                    else
+                        if dive_body_force then
+                            pcall(function() dive_body_force:Destroy() end)
+                            dive_body_force = nil
+                        end
+                        is_diving_state = false
+                    end
+                else
+                    if dive_body_force then
+                        pcall(function() dive_body_force:Destroy() end)
+                        dive_body_force = nil
+                    end
+                    is_diving_state = false
+                end
+
+                local is_shift_down = services.user_input_service:IsKeyDown(Enum.KeyCode.LeftShift)
+                if aural_hub.player.boost_enhancer and is_shift_down then
+                    hum.WalkSpeed = aural_hub.player.boost_enhancer_speed
+                end
+            end
+        end))
+    end
+
+    return {
+        run = run
+    }
+
+end)
+
+register_module("features/movement/restrictions", function()
+    local services = require("core/services")
+    local config = require("core/config")
+
+    local aural_hub = config.aural_hub
+    local state = config.state
+    local refs = services.refs
+
+    local function run()
+        config.threads.jump_power = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait(0.1) do
+                local hum = refs.get_humanoid()
+                if aural_hub.player.jump_power and hum then
+                    hum.JumpPower = aural_hub.player.jp
+                end
+            end
+        end))
+
+        config.threads.no_jump_cooldown = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait() do
+                local hum = refs.get_humanoid()
+                if aural_hub.physics.no_jump_cooldown and hum then
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+                end
+            end
+        end))
+
+        config.threads.anti_jam = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait() do
+                local char = refs.get_char()
+                local hum = refs.get_humanoid()
+                if aural_hub.physics.anti_jam and char and hum then
+                    local head = char:FindFirstChild("Head")
+                    local torso = char:FindFirstChild("Torso")
+                    local running = hum:GetState() == Enum.HumanoidStateType.Running
+
+                    if head and torso then
+                        local collidable = not aural_hub.physics.anti_jam
+                        if not running then collidable = true end
+                        head.CanCollide = collidable
+                        torso.CanCollide = collidable
+                    end
+                end
+            end
+        end))
+
+        local function clean_child(child)
+            if aural_hub.physics.anti_block and string.find(child.Name, "FFmover") then
+                child:Destroy()
+            end
+        end
+
+        services.local_player.CharacterAdded:Connect(function(new_char)
+            new_char.DescendantAdded:Connect(LPH_NO_VIRTUALIZE(clean_child))
+        end)
+
+        local initial_char = refs.get_char()
+        if initial_char then
+            initial_char.DescendantAdded:Connect(LPH_NO_VIRTUALIZE(clean_child))
+        end
+
+        config.threads.angle_enhancer = task.spawn(LPH_NO_VIRTUALIZE(function()
+            local angle_tick = os.clock()
+            local shift_lock_enabled = false
+            local last_enabled = false
+
+            services.user_input_service:GetPropertyChangedSignal("MouseBehavior"):Connect(function()
+                shift_lock_enabled = services.user_input_service.MouseBehavior == Enum.MouseBehavior.LockCenter
+            end)
+
+            local function on_jump()
+                local hum = refs.get_humanoid()
+                local hrp = refs.get_hrp()
+                if not hum or not hrp then return end
+                if hum:GetState() ~= Enum.HumanoidStateType.Jumping then return end
+                if os.clock() - angle_tick > 0.2 then return end
+                if not aural_hub.player.angle_enhancer then return end
+                task.wait(0.05)
+                hrp.AssemblyLinearVelocity = hrp.AssemblyLinearVelocity + Vector3.new(0, aural_hub.player.angle_enhancer_value - 50, 0)
+            end
+
+            local hum = refs.get_humanoid()
+            if hum then
+                hum.Jumping:Connect(on_jump)
+            end
+
+            services.local_player.CharacterAdded:Connect(function(new_char)
+                task.wait(0.5)
+                local h = new_char:FindFirstChild("Humanoid")
+                if h then
+                    h.Jumping:Connect(on_jump)
+                end
+            end)
+
+            while true do
+                task.wait()
+                local hrp = refs.get_hrp()
+                local hum2 = refs.get_humanoid()
+                if not hrp or not hum2 then continue end
+
+                if not shift_lock_enabled and last_enabled then
+                    angle_tick = os.clock()
+                end
+
+                if (os.clock() - angle_tick < 0.2) and aural_hub.player.angle_enhancer then
+                    hum2.JumpPower = (aural_hub.player.jump_power and aural_hub.player.jp or 50) + (aural_hub.player.angle_enhancer_value - 50)
+                elseif not aural_hub.player.angle_enhancer then
+                    hum2.JumpPower = (aural_hub.player.jump_power and aural_hub.player.jp or 50)
+                end
+
+                last_enabled = shift_lock_enabled
+            end
+        end))
+
+        local shadow_walk_speed = 16
+        local shadow_jump_power = 50
+        local shadow_hip_height = 0
+        local shadow_use_jump_power = true
+
+        local function is_local_humanoid(instance)
+            if not instance or typeof(instance) ~= "Instance" or not instance:IsA("Humanoid") then
+                return false
+            end
+            local char = services.local_player.Character
+            if char and instance:IsDescendantOf(char) then
+                return true
+            end
+            local hum = refs.get_humanoid()
+            if hum and instance == hum then
+                return true
+            end
+            return false
+        end
+
+        local raw_get
+        raw_get = hookmetamethod(game, "__index", LPH_NO_UPVALUES(function(self, index)
+            if not checkcaller() and is_local_humanoid(self) then
+                if index == "WalkSpeed" then
+                    return shadow_walk_speed
+                elseif index == "JumpPower" then
+                    return shadow_jump_power
+                elseif index == "HipHeight" then
+                    return shadow_hip_height
+                elseif index == "UseJumpPower" then
+                    return shadow_use_jump_power
+                end
+            end
+            return raw_get(self, index)
+        end))
+        config.hooks.index_spoof = raw_get
+
+        local raw_set
+        raw_set = hookmetamethod(game, "__newindex", LPH_NO_UPVALUES(function(self, index, value)
+            if not checkcaller() and is_local_humanoid(self) then
+                if index == "WalkSpeed" then
+                    local num_val = tonumber(value) or 16
+                    if num_val < 0 then
+                        shadow_walk_speed = 0
+                        return raw_set(self, index, value)
+                    end
+
+                    shadow_walk_speed = num_val
+
+                    if aural_hub.player.no_move_restrictions and num_val < 16 then
+                        local target_speed = 16
+                        shadow_walk_speed = math.min(target_speed, 20)
+                        return raw_set(self, index, target_speed)
+                    end
+
+                    return raw_set(self, index, value)
+                elseif index == "JumpPower" then
+                    local num_val = tonumber(value) or 50
+                    shadow_jump_power = num_val
+
+                    if num_val < 50 then
+                        if aural_hub.player.no_move_restrictions then
+                            local target_jp = aural_hub.player.jump_power and aural_hub.player.jp or 50
+                            shadow_jump_power = math.min(target_jp, 50)
+                            return raw_set(self, index, target_jp)
+                        end
+                    end
+
+                    return raw_set(self, index, value)
+                elseif index == "HipHeight" then
+                    local num_val = tonumber(value) or 0
+                    shadow_hip_height = num_val
+                    return raw_set(self, index, value)
+                elseif index == "UseJumpPower" then
+                    shadow_use_jump_power = (value == true)
+                    return raw_set(self, index, value)
+                end
+            end
+            return raw_set(self, index, value)
+        end))
+        config.hooks.no_move_restrictions = raw_set
+
+        local raw_namecall
+        raw_namecall = hookmetamethod(game, "__namecall", LPH_NO_UPVALUES(function(self, ...)
+            local method = getnamecallmethod()
+            if (method == "fireServer" or method == "FireServer")
+               and rawequal(self, services.remote)
+               and aural_hub.physics.anti_down then
+                local a1, a2 = ...
+                if a1 == "Game" and a2 == "AutoDown" then
+                    return
+                end
+            end
+            return raw_namecall(self, ...)
+        end))
+        config.hooks.anti_down = raw_namecall
+    end
+
+    return {
+        run = run
+    }
+
+end)
+
+register_module("features/automatics/auto_qb", function()
+    local services = require("core/services")
+    local config = require("core/config")
+    local helpers = require("utils/helpers")
+
+    local aural_hub = config.aural_hub
+    local refs = services.refs
+
+    local blacklisted_status = { "KICKOFF", "PUNT", "PAT" }
+
+    local function run()
+        config.threads.auto_qb = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait() do
+                local hrp = refs.get_hrp()
+                local hum = refs.get_humanoid()
+                if not aural_hub.automatics.auto_qb or not hrp or not hum then continue end
+
+                pcall(function()
+                    local flags = services.replicated_storage:FindFirstChild("Flags")
+                    local status = flags and flags:FindFirstChild("Status")
+                    local poss_tag = flags and flags:FindFirstChild("PossessionTag")
+                    local status_tag = flags and flags:FindFirstChild("StatusTag")
+                    local football = helpers.get_closest_football()
+
+                    if status and status.Value == "PrePlay"
+                        and football
+                        and poss_tag and poss_tag.Value == services.local_player.Team.Name
+                        and status_tag and not table.find(blacklisted_status, status_tag.Value) then
+
+                        local target_pos = football.Position
+
+                        if aural_hub.automatics.auto_qb_type == "Legit" then
+                            hum:MoveTo(target_pos)
+                        elseif aural_hub.automatics.auto_qb_type == "Precise" then
+                            hrp.CFrame = CFrame.new(target_pos + Vector3.new(0, 2, -0.5))
+                        elseif aural_hub.automatics.auto_qb_type == "Rage" then
+                            hrp.CFrame = CFrame.new(target_pos + Vector3.new(0, 2, 0))
+                        end
+                    end
+                end)
+            end
+        end))
+
+        services.local_player.PlayerGui.ChildAdded:Connect(function(child)
+            if child.Name == "KickerGui" and aural_hub.automatics.auto_kick then
+                local cursor = child:FindFirstChild("Cursor", true)
+                if not cursor then return end
+
+                local function click()
+                    if mouse1click then
+                        mouse1click()
+                    else
+                        pcall(function()
+                            local x, y = services.mouse.X, services.mouse.Y
+                            services.virtual_input_manager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+                            task.wait(0.01)
+                            services.virtual_input_manager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+                        end)
+                    end
+                end
+
+                repeat task.wait() until cursor.Position.Y.Scale < 0.01 + ((100 - aural_hub.automatics.auto_kick_power) * 0.012)
+                click()
+                repeat task.wait() until cursor.Position.Y.Scale > 0.9 - ((100 - aural_hub.automatics.auto_kick_accuracy) * 0.001)
+                click()
+            end
+        end)
+    end
+
+    return {
+        run = run
+    }
+
+end)
+
+register_module("features/automatics/auto_captain", function()
+    local services = require("core/services")
+    local config = require("core/config")
+
+    local aural_hub = config.aural_hub
+    local refs = services.refs
+
+    local function run()
+        task.spawn(function()
+            local finish_line = nil
+            pcall(function()
+                if game.PlaceId == 82866880824588 then
+                    local models = services.workspace:WaitForChild("Models", 10)
+                    local locker_room = models and models:WaitForChild("LockerRoomA", 10)
+                    finish_line = locker_room and locker_room:WaitForChild("FinishLine3", 10)
+                end
+            end)
+
+            if finish_line then
+                finish_line:GetPropertyChangedSignal("CFrame"):Connect(function()
+                    local hrp = refs.get_hrp()
+                    if aural_hub.automatics.auto_captain and finish_line.Position.Y > 0 and hrp then
+                        for _ = 1, 7 do
+                            task.wait(0.20)
+                            hrp.CFrame = finish_line.CFrame + Vector3.new(0, 2, 0)
+                        end
+                    end
+                end)
+            end
+        end)
+    end
+
+    return {
+        run = run
+    }
+
+end)
+
+register_module("features/automatics/auto_guard", function()
+    local services = require("core/services")
+    local config = require("core/config")
+    local helpers = require("utils/helpers")
+
+    local aural_hub = config.aural_hub
+    local refs = services.refs
+
+    local get_closest_opponent = LPH_JIT(function()
+        local local_player = services.local_player
+        local hrp = refs.get_hrp()
+        if not hrp then return nil end
+
+        local closest = nil
+        local closest_dist = math.huge
+
+        for _, player in next, services.players:GetPlayers() do
+            if player ~= local_player and player.Team ~= local_player.Team and player.Character then
+                local target_hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                if target_hrp then
+                    local dist = (target_hrp.Position - hrp.Position).Magnitude
+                    if dist < closest_dist then
+                        closest = player.Character
+                        closest_dist = dist
+                    end
+                end
+            end
+        end
+        return closest
+    end)
+
+    local function run()
+        config.threads.auto_rush_qb = task.spawn(LPH_NO_VIRTUALIZE(function()
+            while task.wait() do
+                if not aural_hub.automatics.auto_rush then continue end
+                local hum = refs.get_humanoid()
+                local hrp = refs.get_hrp()
+                if not hum or not hrp then continue end
+
+                local carrier_char = helpers.get_ball_carrier()
+
+                if carrier_char and carrier_char:FindFirstChild("HumanoidRootPart") then
+                    local delay_val = tonumber(aural_hub.automatics.auto_rush_delay) or 0.1
+                    task.wait(delay_val)
+
+                    if refs.get_humanoid() and carrier_char:FindFirstChild("HumanoidRootPart") then
+                        local target_pos = nil
+
+                        if game.PlaceId == 82866880824588 then
+                            local carrier_flag = services.replicated_storage:FindFirstChild("Flags") and services.replicated_storage.Flags:FindFirstChild("Carrier")
+                            local carrier_player = carrier_flag and carrier_flag.Value
+                            if carrier_player and carrier_player.Team ~= services.local_player.Team and carrier_player.Character then
+                                local carrier_hrp = carrier_player.Character:FindFirstChild("HumanoidRootPart")
+                                local carrier_torso = carrier_player.Character:FindFirstChild("Torso")
+                                if carrier_hrp and carrier_torso then
+                                    local carrier_vel = carrier_hrp.Velocity
+                                    local dist = (carrier_torso.Position - hrp.Position).Magnitude
+                                    local my_speed = math.max(hum.WalkSpeed, 16)
+                                    local intercept_time = dist / my_speed
+                                    local flat_vel = Vector3.new(carrier_vel.X, 0, carrier_vel.Z)
+                                    target_pos = carrier_torso.Position + flat_vel * intercept_time
+                                end
+                            end
+                        else
+                            local carrier_hrp = carrier_char:FindFirstChild("HumanoidRootPart")
+                            if carrier_hrp then
+                                local carrier_vel = carrier_hrp.Velocity
+                                local dist = (carrier_hrp.Position - hrp.Position).Magnitude
+                                local my_speed = math.max(hum.WalkSpeed, 16)
+                                local intercept_time = dist / my_speed
+                                local flat_vel = Vector3.new(carrier_vel.X, 0, carrier_vel.Z)
+                                target_pos = carrier_hrp.Position + flat_vel * intercept_time
+                            end
+                        end
+
+                        if target_pos then
+                            refs.get_humanoid():MoveTo(target_pos)
+                        end
+                    end
+                end
+            end
+        end))
+
+        config.threads.auto_catch = task.spawn(LPH_NO_VIRTUALIZE(function()
+            local last_catch_tick = 0
+            while task.wait() do
+                local hrp = refs.get_hrp()
+                if aural_hub.automatics.auto_catch and hrp and (tick() - last_catch_tick > 0.2) then
+                    local football = helpers.get_closest_football()
+                    if football then
+                        pcall(function()
+                            local dist = (hrp.Position - football.Position).Magnitude
+                            if dist <= aural_hub.automatics.auto_catch_radius then
+                                last_catch_tick = tick()
+                                helpers.fire_catch()
+                            end
+                        end)
+                    end
+                end
+            end
+        end))
+
+        config.threads.auto_guard = task.spawn(LPH_NO_VIRTUALIZE(function()
+            local was_moving = false
+            while task.wait() do
+                if not aural_hub.automatics.auto_guard then
+                    if was_moving then
+                        was_moving = false
+                        local hum = refs.get_humanoid()
+                        if hum then hum:Move(Vector3.new(0, 0, 0)) end
+                    end
+                    continue
+                end
+                local hum = refs.get_humanoid()
+                local hrp = refs.get_hrp()
+                if not hum or not hrp then continue end
+
+                local target_char = helpers.get_ball_carrier() or get_closest_opponent()
+                if target_char and target_char:FindFirstChild("HumanoidRootPart") then
+                    local dist = (target_char.HumanoidRootPart.Position - hrp.Position).Magnitude
+                    if dist <= aural_hub.automatics.auto_guard_radius then
+                        was_moving = true
+                        hum:MoveTo(target_char.HumanoidRootPart.Position)
+                    else
+                        if was_moving then
+                            was_moving = false
+                            hum:Move(Vector3.new(0, 0, 0))
+                        end
+                    end
+                else
+                    if was_moving then
+                        was_moving = false
+                        hum:Move(Vector3.new(0, 0, 0))
+                    end
+                end
+            end
+        end))
+    end
+
+    return {
+        run = run
+    }
+
+end)
+
+register_module("features/world/optimization", function()
+    local services = require("core/services")
+    local config = require("core/config")
+
+    local aural_hub = config.aural_hub
+
+    local descendant_added_conn = nil
+
+    local function update_no_textures()
+        if aural_hub.visuals.no_textures then
+            for _, part in next, services.workspace:GetDescendants() do
+                if part:IsA("BasePart") and not part:GetAttribute("OriginalMaterial") then
+                    part:SetAttribute("OriginalMaterial", part.Material.Name)
+                    part.Material = Enum.Material.SmoothPlastic
+                end
+            end
+
+            if not descendant_added_conn then
+                descendant_added_conn = services.workspace.DescendantAdded:Connect(function(part)
+                    if aural_hub.visuals.no_textures and part:IsA("BasePart") and not part:GetAttribute("OriginalMaterial") then
+                        part:SetAttribute("OriginalMaterial", part.Material.Name)
+                        part.Material = Enum.Material.SmoothPlastic
+                    end
+                end)
+            end
+        else
+            if descendant_added_conn then
+                descendant_added_conn:Disconnect()
+                descendant_added_conn = nil
+            end
+
+            for _, part in next, services.workspace:GetDescendants() do
+                if part:IsA("BasePart") then
+                    local orig = part:GetAttribute("OriginalMaterial")
+                    if orig then
+                        pcall(function() part.Material = Enum.Material[orig] end)
+                        part:SetAttribute("OriginalMaterial", nil)
+                    end
+                end
+            end
+        end
+    end
+
+    local function run()
+        local last_state = nil
+
+        task.spawn(function()
+            while task.wait(1) do
+                if aural_hub.visuals.no_textures ~= last_state then
+                    last_state = aural_hub.visuals.no_textures
+                    pcall(update_no_textures)
+                end
+            end
+        end)
+    end
+
+    return {
+        run = run,
+        update = update_no_textures
+    }
+
+end)
+
+register_module("features/aimbot/throw_solver", function()
+    local services = require("core/services")
+    local config = require("core/config")
+    local helpers = require("utils/helpers")
+    local math_utils = require("utils/math")
+
+    local aural_hub = config.aural_hub
+    local refs = services.refs
+
+    local gravity = 28
+    local gravity_vec = Vector3.new(0, -gravity, 0)
+
+    local function angle_to_hit_coords(dist_xz, target_height_rel, proj_speed, grav)
+        local lob = math.atan(
+            (proj_speed ^ 2 + math.sqrt(proj_speed ^ 4 - grav * (grav * dist_xz ^ 2 + 2 * target_height_rel * proj_speed ^ 2)))
+            / (grav * dist_xz)
+        )
+        local peak = dist_xz * math.tan(lob) - (grav * dist_xz ^ 2) / (2 * proj_speed ^ 2 * math.cos(lob) ^ 2)
+        local corrected = target_height_rel - peak
+        local flat = math.atan(
+            (proj_speed ^ 2 - math.sqrt(proj_speed ^ 4 - grav * (grav * dist_xz ^ 2 + 2 * corrected * proj_speed ^ 2)))
+            / (grav * dist_xz)
+        )
+        return flat, lob
+    end
+
+    local function calc_air_time_from_angle(proj_speed, angle_deg, initial_height, grav)
+        local theta = math.rad(angle_deg)
+        local v0y = proj_speed * math.sin(theta)
+        local t_max = v0y / grav
+        if initial_height >= 0 then
+            return v0y / grav + t_max
+        end
+        return 2 * t_max
+    end
+
+    local function get_air_time_for_power(power, dist_xz, target_height_rel, grav, use_lob)
+        local flat, lob = angle_to_hit_coords(dist_xz, target_height_rel, power, grav)
+        local angle_deg = use_lob and math.deg(lob) or math.deg(flat)
+        return calc_air_time_from_angle(power, angle_deg, -target_height_rel, grav)
+    end
+
+    local function calc_vel_components(start_pos, target_pos, grav, time)
+        local displacement = target_pos - start_pos
+        local horiz_dist = Vector2.new(displacement.X, displacement.Z).Magnitude
+        local horiz_vel = horiz_dist / time
+        local vert_vel = (displacement.Y + 0.5 * grav * time * time) / time
+        return horiz_vel, vert_vel
+    end
+
+    local function calc_vel(start_pos, target_pos, grav, time)
+        local horiz_vel, vert_vel = calc_vel_components(start_pos, target_pos, grav, time)
+        local diff = target_pos - start_pos
+        local flat = diff * Vector3.new(1, 0, 1)
+        local flat_dir = flat.Magnitude > 0 and flat.Unit or Vector3.new(0, 0, 1)
+        return flat_dir * horiz_vel + Vector3.new(0, vert_vel, 0)
+    end
+
+    local function calc_angle_from_vel(velocity)
+        local flat_speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+        if flat_speed <= 0 then return 0 end
+        return math.atan(velocity.Y / flat_speed)
+    end
+
+    local function route_accuracy(value, ideal, upper, lower)
+        return 1 - math.abs(ideal - value) / math.abs(upper - lower)
+    end
+
+    local function calc_route(target)
+        if helpers.is_bot(target.Name) then
+            return "Straight", 1
+        end
+
+        local char = target.Character
+        if not char then return "Still", 0 end
+
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChild("Humanoid")
+        local qb_hrp = refs.get_hrp()
+        if not hrp or not hum or not qb_hrp then return "Still", 0 end
+
+        local move_dir = hum.MoveDirection
+        if move_dir.Magnitude < 0.1 then
+            return "Still", 1
+        end
+
+        local streak_vec = ((hrp.Position - qb_hrp.Position) * Vector3.new(0, 0, 1))
+        if streak_vec.Magnitude < 0.01 then return "Still", 0 end
+        streak_vec = streak_vec.Unit
+
+        local dot = move_dir:Dot(streak_vec)
+        if dot >= 0.8 then
+            return "Straight", math.clamp(route_accuracy(dot, 1, 1, 0.8), 0, 1)
+        elseif dot >= 0.45 then
+            return "Post", math.clamp(route_accuracy(dot, 0.5, 0.8, 0.45), 0, 1)
+        elseif dot >= 0.2 then
+            return "Slant", math.clamp(route_accuracy(dot, 0.3, 0.45, 0.2), 0, 1)
+        elseif dot >= -0.2 then
+            return "Slant", math.clamp(route_accuracy(dot, 0, 0.2, -0.2), 0, 1)
+        end
+        return "Comeback", math.clamp(route_accuracy(dot, -1, 0.2, -0.2), 0, 1)
+    end
+
+    local function resolve_throw_type(target)
+        if aural_hub.qb_aimbot.auto_choose_throw_type then
+            return math_utils.get_throw_type(target)
+        end
+        return aural_hub.qb_aimbot.throw_profile
+    end
+
+    local function get_route_lead(throw_type, route)
+        local profile = aural_hub.qb_aimbot.route_leads[throw_type]
+        if not profile then return 0, 0 end
+        local lead = profile[route] or profile.Still
+        if not lead then return aural_hub.qb_aimbot.vertical_lead, aural_hub.qb_aimbot.horizontal_lead end
+        return lead.vertical, lead.horizontal
+    end
+
+    local function is_jump_pass()
+        return aural_hub.qb_aimbot.high_throw_modifier
+    end
+
+    local function predict_position(target, flight_time, vertical_lead, horizontal_lead)
+        if helpers.is_bot(target.Name) then
+            local hrp = target:FindFirstChild("HumanoidRootPart")
+            if not hrp then return nil end
+            local speed = 20
+            local move_dir = hrp.CFrame.LookVector
+            local jump_boost = is_jump_pass() and aural_hub.qb_aimbot.jump_pass_height or 0
+            local offset = move_dir * horizontal_lead + Vector3.new(0, vertical_lead + jump_boost, 0)
+            return hrp.Position + move_dir * speed * flight_time + offset
+        end
+
+        local char = target.Character
+        if not char then return nil end
+
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChild("Humanoid")
+        if not hrp or not hum then return nil end
+
+        local speed = hrp.Velocity.Magnitude
+        local move_dir = hum.MoveDirection
+        local jump_boost = is_jump_pass() and aural_hub.qb_aimbot.jump_pass_height or 0
+        local offset = move_dir * horizontal_lead + Vector3.new(0, vertical_lead + jump_boost, 0)
+        return hrp.Position + move_dir * speed * flight_time + offset
+    end
+
+    local function clamp_to_field(pos)
+        if game.PlaceId == helpers.practice_place then
+            return pos
+        end
+        local margin = aural_hub.qb_aimbot.field_margin
+        return Vector3.new(
+            math.clamp(pos.X, -(80 + margin), 80 + margin),
+            pos.Y,
+            math.clamp(pos.Z, -(180 + margin), 180 + margin)
+        )
+    end
+
+    local function get_release_origin()
+        local char = refs.get_char()
+        local head = char and char:FindFirstChild("Head")
+        if not head then return nil end
+        return head.Position + aural_hub.qb_aimbot.release_offset
+    end
+
+    local function get_release_delay()
+        local stats = game:GetService("Stats")
+        local base = aural_hub.qb_aimbot.throw_release_delay
+        if not stats then return base end
+
+        local ping, server_ping = 0, 0
+        pcall(function()
+            ping = stats.PerformanceStats.Ping:GetValue()
+            server_ping = stats.Network.ServerStatsItem["Data Ping"]:GetValue()
+        end)
+        return base + (ping + server_ping) / 1000
+    end
+
+    local function resolve_desired_power(target, throw_type)
+        if aural_hub.qb_aimbot.use_95_power_mode then
+            return 95
+        end
+        if aural_hub.qb_aimbot.highest_power_mode then
+            return math.clamp(math_utils.get_power(math_utils.horizontal_range_of_projectile(target), gravity), 85, 95)
+        end
+        if throw_type == "Bullet" then
+            return 95
+        end
+        if throw_type == "Fade" then
+            return 65
+        end
+        return aural_hub.qb_aimbot.normal_power
+    end
+
+    local function apply_power_based_time(origin, target_pos, time, target, throw_type)
+        if aural_hub.qb_aimbot.auto_power then
+            return time
+        end
+
+        local power = resolve_desired_power(target, throw_type)
+        local flat = origin - target_pos
+        local dist_xz = Vector2.new(flat.X, flat.Z).Magnitude
+        local height_rel = target_pos.Y - origin.Y
+
+        local ok, air_time = pcall(function()
+            return get_air_time_for_power(power, dist_xz, height_rel, gravity, false)
+        end)
+        if ok and air_time and not tostring(air_time):lower():find("nan") then
+            return air_time
+        end
+        return time
+    end
+
+    local function apply_angle_based_time(origin, target_pos, time, angle_redo)
+        if not aural_hub.qb_aimbot.angle_based or angle_redo >= 20 then
+            return time, angle_redo
+        end
+
+        local desired = aural_hub.qb_aimbot.desired_angle
+        local margin = 1
+        local increment = 0.05
+
+        local velocity = calc_vel(origin, target_pos, gravity, time)
+        local angle_deg = math.deg(calc_angle_from_vel(velocity))
+
+        if math.abs(angle_deg - desired) < margin then
+            return time, angle_redo
+        end
+
+        if angle_deg < desired then
+            time += increment * time
+        else
+            time -= increment * time
+        end
+
+        return apply_angle_based_time(origin, target_pos, time, angle_redo + 1)
+    end
+
+    local function build_solution(target, base_flight_time)
+        if not target then return nil end
+
+        config.state.closest_player = target
+
+        local origin = get_release_origin()
+        if not origin then return nil end
+
+        local throw_type = resolve_throw_type(target)
+        local route = calc_route(target)
+        local vertical_lead, horizontal_lead = get_route_lead(throw_type, route)
+
+        local lead_time = base_flight_time + config.state.release_time
+        local predicted = predict_position(target, lead_time, vertical_lead, horizontal_lead)
+        if not predicted or not helpers.is_vector3_valid(predicted) then return nil end
+
+        local end_pos = clamp_to_field(predicted)
+        local time = math.max(base_flight_time, 0.01)
+
+        time = apply_angle_based_time(origin, end_pos, time, 0)
+        time = apply_power_based_time(origin, end_pos, time, target, throw_type)
+
+        local velocity = calc_vel(origin, end_pos, gravity, time)
+        local raw_power = velocity.Magnitude
+        local angle_deg = math.deg(calc_angle_from_vel(velocity))
+        local throw_dir = raw_power > 0 and velocity.Unit or Vector3.new(0, 1, 0)
+        local resolved_power = math.clamp(math.round(raw_power), 0, 95)
+
+        local out_of_range = raw_power > 95
+        local impossible = false
+        if out_of_range then
+            local angle45diff = math.abs(angle_deg - 45)
+            impossible = angle45diff <= 1
+        end
+
+        return {
+            throw_type = throw_type,
+            route = route,
+            start_pos = origin,
+            end_pos = end_pos,
+            throw_dir = throw_dir,
+            throw_power = resolved_power,
+            raw_power = raw_power,
+            beam_velocity = velocity,
+            beam_time = time,
+            launch_angle = calc_angle_from_vel(velocity),
+            angle_deg = math.round(angle_deg * 10) / 10,
+            flight_time = math.round(time * 100) / 100,
+            resolved_power = resolved_power,
+            out_of_range = out_of_range,
+            impossible = impossible,
+        }
+    end
+
+    return {
+        gravity = gravity,
+        gravity_vec = gravity_vec,
+        get_release_delay = get_release_delay,
+        build_solution = build_solution,
+        calc_vel = calc_vel,
+        calc_route = calc_route,
+        predict_position = predict_position,
+        get_air_time_for_power = get_air_time_for_power,
+    }
+
+end)
+
+register_module("features/aimbot/aimbot", function()
+    local services = require("core/services")
+    local config = require("core/config")
+    local helpers = require("utils/helpers")
+    local math_utils = require("utils/math")
+    local throw_solver = require("features/aimbot/throw_solver")
+    local beam_visuals = require("visuals/beam")
+    local esp_receiver = require("visuals/esp")
+    local aimbot_hud = require("visuals/hud_cards")
+    local fov_visuals = require("visuals/fov")
+
+    local aural_hub = config.aural_hub
+    local state = config.state
+    local refs = services.refs
+
+    local gravity_vec = throw_solver.gravity_vec
+    local invalid_power_retry_dir = 1
+
+    local get_closest_player_to_mouse = LPH_JIT(function()
+        if aural_hub.qb_aimbot.target_lock and aural_hub.qb_aimbot.locked_target then
+            local locked = aural_hub.qb_aimbot.locked_target
+            local valid = false
+            pcall(function()
+                if helpers.is_bot(locked.Name) then
+                    valid = locked:FindFirstChild("HumanoidRootPart") ~= nil
+                else
+                    valid = locked.Character and locked.Character:FindFirstChild("HumanoidRootPart") ~= nil
+                end
+            end)
+            if valid then return locked end
+            aural_hub.qb_aimbot.locked_target = nil
+        end
+
+        local mouse_pos = Vector2.new(services.mouse.X, services.mouse.Y)
+        local fov = aural_hub.qb_aimbot.fov
+        local priority = aural_hub.qb_aimbot.target_priority
+        local receivers = esp_receiver.get_receivers()
+
+        if priority == "Most Open" then
+            local best_receiver = nil
+            local best_open_dist = -1
+
+            for _, r in pairs(receivers) do
+                local screen_pos = helpers.get_screen_position(r.hrp)
+                local screen_dist = (screen_pos - mouse_pos).Magnitude
+                if fov > 0 and screen_dist > fov then continue end
+
+                local open_dist = esp_receiver.closest_defender_dist(r.target)
+                if open_dist > best_open_dist then
+                    best_open_dist = open_dist
+                    best_receiver = r.target
+                end
+            end
+
+            if aural_hub.qb_aimbot.target_lock and best_receiver then
+                aural_hub.qb_aimbot.locked_target = best_receiver
+            end
+            return best_receiver
+
+        elseif priority == "Furthest Downfield" then
+            local best_receiver = nil
+            local best_z = -math.huge
+            local hrp = refs.get_hrp()
+            if not hrp then return nil end
+            local qb_z = hrp.Position.Z
+
+            for _, r in pairs(receivers) do
+                local screen_pos = helpers.get_screen_position(r.hrp)
+                local screen_dist = (screen_pos - mouse_pos).Magnitude
+                if fov > 0 and screen_dist > fov then continue end
+
+                local downfield_dist = math.abs(r.hrp.Position.Z - qb_z)
+                if downfield_dist > best_z then
+                    best_z = downfield_dist
+                    best_receiver = r.target
+                end
+            end
+
+            if aural_hub.qb_aimbot.target_lock and best_receiver then
+                aural_hub.qb_aimbot.locked_target = best_receiver
+            end
+            return best_receiver
+
+        else
+            local closest_r = nil
+            local closest_dist = math.huge
+
+            for _, r in pairs(receivers) do
+                local screen_pos = helpers.get_screen_position(r.hrp)
+                local screen_dist = (screen_pos - mouse_pos).Magnitude
+                if fov > 0 and screen_dist > fov then continue end
+
+                if screen_dist < closest_dist then
+                    closest_r = r.target
+                    closest_dist = screen_dist
+                end
+            end
+
+            if aural_hub.qb_aimbot.target_lock and closest_r then
+                aural_hub.qb_aimbot.locked_target = closest_r
+            end
+            return closest_r
+        end
+    end)
+
+    local throw_football = LPH_JIT(function(_football, start_pos, direction, power)
+        pcall(function()
+            local character = refs.get_char()
+            if not character then return end
+
+            local tool = character:FindFirstChildOfClass("Tool")
+            if not tool then return end
+
+            local handle = tool:FindFirstChild("Handle")
+            if not handle then return end
+
+            local remote = handle:FindFirstChild("RemoteEvent")
+            if not remote then return end
+
+            local throw_dir = direction and direction.Unit or Vector3.new(0, 1, 0)
+            local resolved_power = tonumber(power) or 0
+            local head = character:FindFirstChild("Head")
+            if not head then return end
+
+            if game.PlaceId == helpers.practice_place then
+                remote:FireServer("Clicked", head.CFrame.p, head.Position + throw_dir * 10000, resolved_power)
+            elseif game.PlaceId == helpers.match_place then
+                local root = character:FindFirstChild("HumanoidRootPart")
+                if not root then return end
+                local arg1 = (root.CFrame * CFrame.new(0, 1.5, 0)).Position + Vector3.new(70000000, 0, 0)
+                remote:FireServer("Clicked", arg1, head.Position + throw_dir * 10000, resolved_power, 1)
+            end
+        end)
+    end)
+
+    local do_qb_throw = LPH_JIT(function(cached_solution)
+        if not aural_hub.qb_aimbot.enabled then return end
+
+        local character = refs.get_char()
+        if not character or not character:FindFirstChildOfClass("Tool") then return end
+
+        local closest_player = state.closest_player
+        if not closest_player then return end
+
+        local function throw_attempt(time, depth, solution)
+            if depth > 50 then return end
+
+            solution = solution or throw_solver.build_solution(closest_player, time)
+            if not solution then return end
+            if solution.impossible then return end
+
+            if not aural_hub.qb_aimbot.angle_based and solution.raw_power > 95 then
+                local max_t = aural_hub.qb_aimbot.max_air_time
+                if time > max_t or time <= 0 then
+                    invalid_power_retry_dir = -invalid_power_retry_dir
+                end
+                return throw_attempt(time + 0.01 * invalid_power_retry_dir, depth + 1)
+            end
+
+            if solution.out_of_range then return end
+
+            local throw_dir = solution.throw_dir
+            if aural_hub.qb_aimbot.smooth_enabled and helpers.is_vector3_valid(state.smoothed_direction) then
+                throw_dir = state.smoothed_direction
+            end
+
+            state.throwing_direction = throw_dir
+            task.spawn(function()
+                task.wait(aural_hub.qb_aimbot.throw_release_delay)
+                throw_football(nil, solution.start_pos, throw_dir, solution.throw_power)
+            end)
+        end
+
+        pcall(function()
+            throw_attempt(state.throw_air_time, 0, cached_solution)
+        end)
+    end)
+
+    local function is_qb_ready()
+        if game.PlaceId == helpers.practice_place then
+            return helpers.character_has_football()
+        end
+
+        if game.PlaceId == helpers.match_place then
+            local flags = services.replicated_storage:FindFirstChild("Flags")
+            if not flags then return false end
+            local status = flags:FindFirstChild("Status")
+            local throwable = flags:FindFirstChild("Throwable")
+            local ball_gui = services.local_player.PlayerGui:FindFirstChild("BallGui")
+            return ball_gui
+                and status and status.Value == "InPlay"
+                and throwable and throwable.Value
+        end
+
+        return helpers.character_has_football()
+    end
+
+    local function run()
+        task.spawn(function()
+            while task.wait(0.1) do
+                state.release_time = throw_solver.get_release_delay()
+            end
+        end)
+
+        services.user_input_service.InputBegan:Connect(function(input, gp)
+            if gp then return end
+            if not aural_hub.qb_aimbot.enabled then return end
+
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if game.PlaceId == helpers.match_place then
+                    local flags = services.replicated_storage:FindFirstChild("Flags")
+                    if not flags then return end
+                    local status = flags:FindFirstChild("Status")
+                    local throwable = flags:FindFirstChild("Throwable")
+                    local message = services.local_player.PlayerGui:FindFirstChild("MainGui")
+                        and services.local_player.PlayerGui.MainGui:FindFirstChild("Message")
+                    if status and status.Value == "InPlay" and throwable and message and message.Text == "HIKE" then
+                        do_qb_throw()
+                    elseif state.qb_ready then
+                        do_qb_throw()
+                    end
+                else
+                    do_qb_throw()
+                end
+            end
+        end)
+
+        if services.is_mobile and state.mobile_buttons.Throw then
+            state.mobile_buttons.Throw.MouseButton1Click:Connect(do_qb_throw)
+        end
+
+        if game.PlaceId == helpers.match_place then
+            task.spawn(function()
+                local flags = services.replicated_storage:WaitForChild("Flags", 10)
+                if not flags then return end
+                local status = flags:WaitForChild("Status", 10)
+                if not status then return end
+
+                status.Changed:Connect(function(value)
+                    if value == "InPlay" and services.local_player.PlayerGui:FindFirstChild("BallGui") then
+                        state.qb_ready = true
+                        state.last_hike_tick = tick()
+                    elseif value == "DeadPlay" or value == "PrePlay" then
+                        state.qb_ready = false
+                    end
+                end)
+            end)
+        end
+
+        services.run_service.Heartbeat:Connect(LPH_NO_VIRTUALIZE(function()
+            pcall(fov_visuals.update_fov_circle)
+
+            if not aural_hub.qb_aimbot.enabled then
+                if state.fov_circle then pcall(function() state.fov_circle.Visible = false end) end
+                if state.fov_circle_frame then pcall(function() state.fov_circle_frame.Visible = false end) end
+                esp_receiver.clear_esp()
+                state.is_scrambling = false
+                if state.cards then state.cards.Enabled = false end
+                return
+            end
+
+            state.closest_player = get_closest_player_to_mouse()
+
+            local hrp = refs.get_hrp()
+            local hum = refs.get_humanoid()
+            local character = refs.get_char()
+
+            if aural_hub.qb_aimbot.scramble_mode and character and hrp and hum then
+                pcall(function()
+                    if helpers.character_has_football() then
+                        local receivers = esp_receiver.get_receivers()
+                        local any_open = false
+                        for _, r in pairs(receivers) do
+                            if esp_receiver.is_receiver_open(r.target) then
+                                any_open = true
+                                break
+                            end
+                        end
+
+                        if not any_open then
+                            state.is_scrambling = true
+                            hum.WalkSpeed = aural_hub.qb_aimbot.scramble_speed
+                            hum:MoveTo(hrp.Position + hrp.CFrame.LookVector * 20)
+                        else
+                            state.is_scrambling = false
+                        end
+                    else
+                        state.is_scrambling = false
+                    end
+                end)
+            else
+                state.is_scrambling = false
+            end
+
+            if not state.closest_player or not character or not helpers.character_has_football() then
+                if state.cards then state.cards.Enabled = false end
+                return
+            end
+
+            pcall(function()
+                local solution = throw_solver.build_solution(state.closest_player, state.throw_air_time)
+                if not solution then
+                    if state.cards then state.cards.Enabled = false end
+                    if state.current_beam then
+                        pcall(function() state.current_beam:Destroy() end)
+                        state.current_beam = nil
+                    end
+                    return
+                end
+
+                state.target_position = solution.end_pos
+                state.throwing_direction = solution.throw_dir
+                state.throw_air_time = solution.flight_time
+
+                if solution.out_of_range and not solution.impossible then
+                    local max_t = aural_hub.qb_aimbot.max_air_time
+                    if solution.angle_deg > 45 then
+                        state.throw_air_time = math.clamp(state.throw_air_time - 0.25, 0.25, max_t)
+                    elseif solution.angle_deg < 45 then
+                        state.throw_air_time = math.clamp(state.throw_air_time + 0.25, 0.25, max_t)
+                    end
+                end
+
+                if aural_hub.qb_aimbot.beam_mode then
+                    local beam_vel = solution.beam_velocity
+                    if aural_hub.qb_aimbot.smooth_enabled and helpers.is_vector3_valid(solution.throw_dir) then
+                        local factor = math.clamp(aural_hub.qb_aimbot.smooth_factor, 1, 20)
+                        state.smoothed_direction = state.smoothed_direction:Lerp(solution.throw_dir, 1 / factor)
+                        beam_vel = state.smoothed_direction * beam_vel.Magnitude
+                    end
+                    local curve0, curve1, cf1, cf2 = math_utils.beam_projectile(
+                        gravity_vec,
+                        beam_vel,
+                        solution.start_pos,
+                        solution.beam_time
+                    )
+                    task.wait()
+                    beam_visuals.update_beam(cf1, cf2, curve0, curve1, aural_hub.qb_aimbot.prediction_color)
+                elseif state.current_beam then
+                    pcall(function() state.current_beam:Destroy() end)
+                    state.current_beam = nil
+                end
+
+                local target_name = ""
+                pcall(function()
+                    if helpers.is_bot(state.closest_player.Name) then
+                        target_name = state.closest_player.Name
+                    else
+                        target_name = state.closest_player.DisplayName or state.closest_player.Name
+                    end
+                end)
+
+                local is_open = esp_receiver.is_receiver_open(state.closest_player)
+
+                aimbot_hud.update_card(
+                    solution.throw_type,
+                    solution.resolved_power,
+                    solution.angle_deg,
+                    solution.flight_time,
+                    solution.start_pos + Vector3.new(0, 6, 0),
+                    is_open,
+                    target_name,
+                    solution.route
+                )
+
+                if aural_hub.qb_aimbot.auto_throw and not state.is_scrambling and not solution.out_of_range then
+                    local time_since_hike = tick() - state.last_hike_tick
+                    if time_since_hike >= aural_hub.qb_aimbot.auto_throw_delay and time_since_hike < 10 then
+                        if not aural_hub.qb_aimbot.interception_avoidance or is_open then
+                            do_qb_throw(solution)
+                        end
+                    end
+                end
+            end)
+        end))
+    end
+
+    return {
+        run = run,
+        do_qb_throw = do_qb_throw,
+    }
+
+end)
+
+register_module("ui/menu", function()
+    local services = require("core/services")
+    local config = require("core/config")
+    local Library = loadstring(game:HttpGet("https://gist.githubusercontent.com/N2TheLegend/0bf71801c961381b8f9fd7716cc04aff/raw/16f17dbf8e480d42641c0632b2e4d22dc2fbc62f/Wisteria.lua"))()
+
+    local aural_hub = config.aural_hub
+    local state = config.state
+
+    local function run()
+        local window = Library.CreateWindow({ Title = "Aural Hub", ToggleKey = Enum.KeyCode.LeftControl })
+
+        -- // catching
+        local catching_tab = window:AddTab({ Name = "Catching", Icon = "star" })
+
+        local catch_sec = catching_tab:AddSection({ Name = "Magnets", Side = "Left" })
+        catch_sec:AddToggle({ Name = "Magnets", Default = aural_hub.catching.magnets, Callback = function(v) aural_hub.catching.magnets = v end })
+        catch_sec:AddToggle({ Name = "Show Magnet Hitbox", Default = aural_hub.catching.show_mag_hitbox, Callback = function(v) aural_hub.catching.show_mag_hitbox = v end })
+        catch_sec:AddSlider({ Name = "Magnet Radius", Min = 0, Max = 20, Default = aural_hub.catching.customizable_radius, Callback = function(v) aural_hub.catching.customizable_radius = v end })
+        catch_sec:AddSlider({ Name = "Magnet Delay", Min = 0, Max = 5, Default = aural_hub.catching.customizable_delay, Callback = function(v) aural_hub.catching.customizable_delay = v end })
+        catch_sec:AddSlider({ Name = "Tween Speed", Min = 0, Max = 20, Default = aural_hub.catching.tween_speed, Callback = function(v) aural_hub.catching.tween_speed = v end })
+        catch_sec:AddToggle({ Name = "Pull Vector", Default = aural_hub.catching.pull_vector, Callback = function(v) aural_hub.catching.pull_vector = v end })
+        catch_sec:AddSlider({ Name = "Pull Vector Speed", Min = 0, Max = 20, Default = aural_hub.catching.pull_vector_speed, Callback = function(v) aural_hub.catching.pull_vector_speed = v end })
+        catch_sec:AddSlider({ Name = "Pull Vector Radius", Min = 0, Max = 35, Default = aural_hub.catching.pull_vector_radius, Callback = function(v) aural_hub.catching.pull_vector_radius = v end })
+        catch_sec:AddToggle({ Name = "Dive Vector", Default = aural_hub.catching.dive_vector, Callback = function(v) aural_hub.catching.dive_vector = v end })
+        catch_sec:AddSlider({ Name = "Dive Vector Radius", Min = 0, Max = 100, Default = aural_hub.catching.dive_vector_radius, Callback = function(v) aural_hub.catching.dive_vector_radius = v end })
+
+        local catch_enh = catching_tab:AddSection({ Name = "Enhancements", Side = "Right" })
+        catch_enh:AddSlider({ Name = "Hand Size", Min = 1, Max = 15, Default = aural_hub.catching.hand_size, Callback = function(v) aural_hub.catching.hand_size = v end })
+        catch_enh:AddSlider({ Name = "Ball Size", Min = 1, Max = 15, Default = aural_hub.catching.ball_size, Callback = function(v) aural_hub.catching.ball_size = v end })
+        catch_enh:AddToggle({ Name = "Show Hand Hitbox", Default = aural_hub.catching.show_hand_hitbox, Callback = function(v) aural_hub.catching.show_hand_hitbox = v end })
+        catch_enh:AddToggle({ Name = "Auto Jump", Default = aural_hub.catching.auto_jump, Callback = function(v) aural_hub.catching.auto_jump = v end })
+        catch_enh:AddSlider({ Name = "Auto Jump Radius", Min = 0, Max = 50, Default = aural_hub.catching.auto_jump_radius, Callback = function(v) aural_hub.catching.auto_jump_radius = v end })
+        catch_enh:AddSlider({ Name = "Auto Jump Height", Min = 0, Max = 30, Default = aural_hub.catching.auto_jump_height, Callback = function(v) aural_hub.catching.auto_jump_height = v end })
+        catch_enh:AddToggle({ Name = "Magnet Enhancer", Default = aural_hub.catching.mag_enhancer, Callback = function(v) aural_hub.catching.mag_enhancer = v end })
+        catch_enh:AddSlider({ Name = "Enhancer Multiplier", Min = 1, Max = 5, Default = aural_hub.catching.mag_enhancer_multiplier, Callback = function(v) aural_hub.catching.mag_enhancer_multiplier = v end })
+
+        -- // player
+        local player_tab = window:AddTab({ Name = "Player", Icon = "home" })
+
+        local player_sec = player_tab:AddSection({ Name = "Movement", Side = "Left" })
+        player_sec:AddToggle({ Name = "Jump Power", Default = aural_hub.player.jump_power, Callback = function(v) aural_hub.player.jump_power = v end })
+        player_sec:AddSlider({ Name = "Jump Power Value", Min = 0, Max = 150, Default = aural_hub.player.jp, Callback = function(v) aural_hub.player.jp = v end })
+        player_sec:AddToggle({ Name = "Angle Enhancer", Default = aural_hub.player.angle_enhancer, Callback = function(v) aural_hub.player.angle_enhancer = v end })
+        player_sec:AddSlider({ Name = "Angle Enhancer Value", Min = 0, Max = 150, Default = aural_hub.player.angle_enhancer_value, Callback = function(v) aural_hub.player.angle_enhancer_value = v end })
+        player_sec:AddToggle({ Name = "CFrame Speed", Default = aural_hub.player.cframe_speed, Callback = function(v) aural_hub.player.cframe_speed = v end })
+        player_sec:AddSlider({ Name = "CFrame Speed Value", Min = 0, Max = 100, Default = aural_hub.player.cf_speed, Callback = function(v) aural_hub.player.cf_speed = v end })
+        player_sec:AddToggle({ Name = "Fly", Default = aural_hub.player.fly, Callback = function(v) aural_hub.player.fly = v end })
+        player_sec:AddSlider({ Name = "Fly Speed", Min = 0, Max = 200, Default = aural_hub.player.fly_speed, Callback = function(v) aural_hub.player.fly_speed = v end })
+
+        local player_enh = player_tab:AddSection({ Name = "Enhancements", Side = "Right" })
+        player_enh:AddToggle({ Name = "Boost Enhancer", Default = aural_hub.player.boost_enhancer, Callback = function(v) aural_hub.player.boost_enhancer = v end })
+        player_enh:AddSlider({ Name = "Boost Enhancer Speed", Min = 16, Max = 120, Default = aural_hub.player.boost_enhancer_speed, Callback = function(v) aural_hub.player.boost_enhancer_speed = v end })
+        player_enh:AddToggle({ Name = "No Move Restrictions", Default = aural_hub.player.no_move_restrictions, Callback = function(v) aural_hub.player.no_move_restrictions = v end })
+        player_enh:AddToggle({ Name = "Dive Physics", Default = aural_hub.player.dive_physics, Callback = function(v) aural_hub.player.dive_physics = v end })
+        player_enh:AddSlider({ Name = "Dive Speed Multiplier", Min = 1, Max = 5, Default = aural_hub.player.dive_speed_multiplier, Callback = function(v) aural_hub.player.dive_speed_multiplier = v end })
+        player_enh:AddSlider({ Name = "Dive Gravity Multiplier", Min = 0, Max = 2, Default = aural_hub.player.dive_gravity_multiplier, Callback = function(v) aural_hub.player.dive_gravity_multiplier = v end })
+
+        local gamepass_sec = player_tab:AddSection({ Name = "Gamepasses", Side = "Right" })
+        gamepass_sec:AddToggle({ Name = "Unlock All Gamepasses", Default = aural_hub.gamepasses.unlock_all, Callback = function(v) aural_hub.gamepasses.unlock_all = v end })
+
+        local custom_sec = player_tab:AddSection({ Name = "Customization", Side = "Left" })
+        custom_sec:AddTextBox({ Name = "Jersey Name", Placeholder = "Enter name...", Callback = function(v)
+            if v ~= "" then services.remote:FireServer("Game", "Customization", "Name", v) end
+        end })
+        custom_sec:AddTextBox({ Name = "Jersey Number", Placeholder = "0-99 or blank", Callback = function(v)
+            local num = tonumber(v)
+            if num then
+                services.remote:FireServer("Game", "Customization", "Number", tostring(math.clamp(math.floor(num), 0, 99)))
+            else
+                services.remote:FireServer("Game", "Customization", "Number", "ClearNum")
+            end
+        end })
+        custom_sec:AddDropdown({ Name = "Position Title", Options = {"QB", "Cap", "Kicker"}, Default = "QB", Callback = function(v)
+            services.remote:FireServer("Game", v:lower(), services.local_player.DisplayName)
+        end })
+        custom_sec:AddButton({ Name = "Remove Title", Callback = function()
+            services.remote:FireServer("Game", "qb", "/remove")
+        end })
+
+        -- // physics & defense
+        local physics_tab = window:AddTab({ Name = "Physics", Icon = "shield" })
+
+        local phys_sec = physics_tab:AddSection({ Name = "Combat", Side = "Left" })
+        phys_sec:AddToggle({ Name = "Click Tackle Aimbot", Default = aural_hub.physics.click_tackle_aimbot, Callback = function(v) aural_hub.physics.click_tackle_aimbot = v end })
+        phys_sec:AddSlider({ Name = "Tackle Radius", Min = 0, Max = 15, Default = aural_hub.physics.click_tackle_aimbot_radius, Callback = function(v) aural_hub.physics.click_tackle_aimbot_radius = v end })
+        phys_sec:AddToggle({ Name = "Quick TP", Default = aural_hub.physics.quick_tp, Callback = function(v) aural_hub.physics.quick_tp = v end })
+        phys_sec:AddSlider({ Name = "Quick TP Speed", Min = 0, Max = 50, Default = aural_hub.physics.quick_tp_speed, Callback = function(v) aural_hub.physics.quick_tp_speed = v end })
+        phys_sec:AddToggle({ Name = "Anti Block", Default = aural_hub.physics.anti_block, Callback = function(v) aural_hub.physics.anti_block = v end })
+        phys_sec:AddToggle({ Name = "Anti Jam", Default = aural_hub.physics.anti_jam, Callback = function(v) aural_hub.physics.anti_jam = v end })
+        phys_sec:AddToggle({ Name = "No Jump Cooldown", Default = aural_hub.physics.no_jump_cooldown, Callback = function(v) aural_hub.physics.no_jump_cooldown = v end })
+
+        local phys_sec2 = physics_tab:AddSection({ Name = "Extended", Side = "Right" })
+        phys_sec2:AddToggle({ Name = "Anti OOB", Default = aural_hub.physics.anti_oob, Callback = function(v)
+            aural_hub.physics.anti_oob = v
+            for _, boundary in next, state.boundaries do
+                pcall(function()
+                    boundary.Parent = not aural_hub.physics.anti_oob and services.workspace.Models.Boundaries or nil
+                end)
+            end
+        end })
+        phys_sec2:AddToggle({ Name = "Block Extender", Default = aural_hub.physics.block_extender, Callback = function(v) aural_hub.physics.block_extender = v end })
+        phys_sec2:AddSlider({ Name = "Block Extender Reach", Min = 0, Max = 50, Default = aural_hub.physics.block_extender_reach, Callback = function(v) aural_hub.physics.block_extender_reach = v end })
+        phys_sec2:AddSlider({ Name = "Block Extender Transparency", Min = 0, Max = 1, Default = aural_hub.physics.block_extender_transparency, Rounding = 1, Callback = function(v) aural_hub.physics.block_extender_transparency = v end })
+        phys_sec2:AddToggle({ Name = "Reset On Catch", Default = aural_hub.physics.reset_on_catch, Callback = function(v) aural_hub.physics.reset_on_catch = v end })
+        phys_sec2:AddSlider({ Name = "Reset On Catch Duration", Min = 0, Max = 5, Default = aural_hub.physics.reset_on_catch_duration, Callback = function(v) aural_hub.physics.reset_on_catch_duration = v end })
+
+        local defense_sec = physics_tab:AddSection({ Name = "Defense", Side = "Left" })
+        defense_sec:AddToggle({ Name = "Anti Tackle", Default = false, Callback = function(v) aural_hub.physics.anti_tackle = v end })
+        defense_sec:AddToggle({ Name = "Anti Down", Default = false, Callback = function(v) aural_hub.physics.anti_down = v end })
+        defense_sec:AddToggle({ Name = "Tackle Reach", Default = aural_hub.physics.tackle_reach, Callback = function(v) aural_hub.physics.tackle_reach = v end })
+        defense_sec:AddSlider({ Name = "Tackle Reach Radius", Min = 0, Max = 50, Default = aural_hub.physics.tackle_reach_radius, Callback = function(v) aural_hub.physics.tackle_reach_radius = v end })
+        defense_sec:AddToggle({ Name = "Swat Reach", Default = aural_hub.physics.swat_reach, Callback = function(v) aural_hub.physics.swat_reach = v end })
+        defense_sec:AddSlider({ Name = "Swat Reach Radius", Min = 0, Max = 50, Default = aural_hub.physics.swat_reach_radius, Callback = function(v) aural_hub.physics.swat_reach_radius = v end })
+
+        -- // automatics
+        local auto_tab = window:AddTab({ Name = "Automatics", Icon = "settings" })
+
+        local auto_sec = auto_tab:AddSection({ Name = "Main", Side = "Left" })
+        auto_sec:AddToggle({ Name = "Auto QB", Default = aural_hub.automatics.auto_qb, Callback = function(v) aural_hub.automatics.auto_qb = v end })
+        auto_sec:AddDropdown({ Name = "Auto QB Type", Options = {"Legit", "Rage", "Precise"}, Default = aural_hub.automatics.auto_qb_type, Callback = function(v) aural_hub.automatics.auto_qb_type = v end })
+        auto_sec:AddToggle({ Name = "Auto Captain", Default = aural_hub.automatics.auto_captain, Callback = function(v) aural_hub.automatics.auto_captain = v end })
+        auto_sec:AddToggle({ Name = "Auto Catch", Default = aural_hub.automatics.auto_catch, Callback = function(v) aural_hub.automatics.auto_catch = v end })
+        auto_sec:AddSlider({ Name = "Catch Radius", Min = 0, Max = 100, Default = aural_hub.automatics.auto_catch_radius, Callback = function(v) aural_hub.automatics.auto_catch_radius = v end })
+        auto_sec:AddToggle({ Name = "Auto Guard", Default = aural_hub.automatics.auto_guard, Callback = function(v) aural_hub.automatics.auto_guard = v end })
+        auto_sec:AddSlider({ Name = "Guard Radius", Min = 0, Max = 50, Default = aural_hub.automatics.auto_guard_radius, Callback = function(v) aural_hub.automatics.auto_guard_radius = v end })
+
+        local auto_sec2 = auto_tab:AddSection({ Name = "Swat & Kick", Side = "Right" })
+        auto_sec2:AddToggle({ Name = "Auto Swat", Default = aural_hub.automatics.auto_swat, Callback = function(v) aural_hub.automatics.auto_swat = v end })
+        auto_sec2:AddSlider({ Name = "Swat Radius", Min = 0, Max = 100, Default = aural_hub.automatics.auto_swat_radius, Callback = function(v) aural_hub.automatics.auto_swat_radius = v end })
+        auto_sec2:AddToggle({ Name = "Auto Kick", Default = aural_hub.automatics.auto_kick, Callback = function(v) aural_hub.automatics.auto_kick = v end })
+        auto_sec2:AddSlider({ Name = "Kick Power", Min = 0, Max = 100, Default = aural_hub.automatics.auto_kick_power, Callback = function(v) aural_hub.automatics.auto_kick_power = v end })
+        auto_sec2:AddSlider({ Name = "Kick Accuracy", Min = 0, Max = 100, Default = aural_hub.automatics.auto_kick_accuracy, Callback = function(v) aural_hub.automatics.auto_kick_accuracy = v end })
+
+        local auto_rush = auto_tab:AddSection({ Name = "Rush", Side = "Right" })
+        auto_rush:AddToggle({ Name = "Auto Rush", Default = aural_hub.automatics.auto_rush, Callback = function(v) aural_hub.automatics.auto_rush = v end })
+        auto_rush:AddSlider({ Name = "Rush Delay", Min = 0, Max = 10, Default = aural_hub.automatics.auto_rush_delay, Callback = function(v) aural_hub.automatics.auto_rush_delay = v end })
+
+        -- // visuals
+        local visuals_tab = window:AddTab({ Name = "Visuals", Icon = "eye" })
+
+        local vis_sec = visuals_tab:AddSection({ Name = "World", Side = "Left" })
+        vis_sec:AddToggle({ Name = "No Textures", Default = aural_hub.visuals.no_textures, Callback = function(v)
+            aural_hub.visuals.no_textures = v
+            pcall(function()
+                require("features/world/optimization").update()
+            end)
+        end })
+
+        -- // qb aimbot
+        local qb_tab = window:AddTab({ Name = "QB Aimbot", Icon = "skull" })
+
+        local qb_throw = qb_tab:AddSection({ Name = "Throw Config", Side = "Left" })
+        qb_throw:AddToggle({ Name = "QB Aimbot", Default = aural_hub.qb_aimbot.enabled, Callback = function(v) aural_hub.qb_aimbot.enabled = v end })
+        qb_throw:AddToggle({ Name = "Auto Angle", Default = aural_hub.qb_aimbot.auto_angle, Callback = function(v) aural_hub.qb_aimbot.auto_angle = v end })
+        qb_throw:AddToggle({ Name = "Auto Power", Default = aural_hub.qb_aimbot.auto_power, Callback = function(v) aural_hub.qb_aimbot.auto_power = v end })
+        qb_throw:AddToggle({ Name = "Angle Based", Default = aural_hub.qb_aimbot.angle_based, Callback = function(v) aural_hub.qb_aimbot.angle_based = v end })
+        qb_throw:AddSlider({ Name = "Desired Angle", Min = 5, Max = 90, Default = aural_hub.qb_aimbot.desired_angle, Callback = function(v) aural_hub.qb_aimbot.desired_angle = v end })
+        qb_throw:AddSlider({ Name = "Max Air Time", Min = 1, Max = 20, Default = aural_hub.qb_aimbot.max_air_time, Callback = function(v) aural_hub.qb_aimbot.max_air_time = v end })
+        qb_throw:AddToggle({ Name = "Auto Throw Type", Default = aural_hub.qb_aimbot.auto_choose_throw_type, Callback = function(v) aural_hub.qb_aimbot.auto_choose_throw_type = v end })
+        qb_throw:AddDropdown({ Name = "Throw Profile", Options = {"Dime", "Dive", "Mag", "Dot", "Bullet", "Fade"}, Default = aural_hub.qb_aimbot.throw_profile, Callback = function(v) aural_hub.qb_aimbot.throw_profile = v end })
+        qb_throw:AddToggle({ Name = "High Throw Modifier", Default = aural_hub.qb_aimbot.high_throw_modifier, Callback = function(v) aural_hub.qb_aimbot.high_throw_modifier = v end })
+        qb_throw:AddToggle({ Name = "Beam Mode", Default = aural_hub.qb_aimbot.beam_mode, Callback = function(v) aural_hub.qb_aimbot.beam_mode = v end })
+        qb_throw:AddDropdown({ Name = "Power Mode", Options = {"Normal", "Highest Power", "95 Power"}, Default = "Normal", Callback = function(v)
+            aural_hub.qb_aimbot.highest_power_mode = (v == "Highest Power")
+            aural_hub.qb_aimbot.use_95_power_mode = (v == "95 Power")
+        end })
+        qb_throw:AddSlider({ Name = "Normal Power", Min = 0, Max = 95, Default = aural_hub.qb_aimbot.normal_power, Callback = function(v) aural_hub.qb_aimbot.normal_power = v end })
+
+        local qb_lead = qb_tab:AddSection({ Name = "Lead & Field", Side = "Right" })
+        qb_lead:AddSlider({ Name = "Vertical Lead", Min = 0, Max = 15, Default = aural_hub.qb_aimbot.vertical_lead, Callback = function(v) aural_hub.qb_aimbot.vertical_lead = v end })
+        qb_lead:AddSlider({ Name = "Horizontal Lead", Min = 0, Max = 2, Default = aural_hub.qb_aimbot.horizontal_lead, Callback = function(v) aural_hub.qb_aimbot.horizontal_lead = v end })
+        qb_lead:AddSlider({ Name = "Field Margin", Min = 0, Max = 30, Default = aural_hub.qb_aimbot.field_margin, Callback = function(v) aural_hub.qb_aimbot.field_margin = v end })
+        qb_lead:AddSlider({ Name = "Custom Lead", Min = 0, Max = 100, Default = aural_hub.qb_aimbot.custom_lead, Callback = function(v) aural_hub.qb_aimbot.custom_lead = v end })
+
+        local qb_general = qb_tab:AddSection({ Name = "General", Side = "Right" })
+        qb_general:AddToggle({ Name = "Smooth Throw", Default = aural_hub.qb_aimbot.smooth_enabled, Callback = function(v) aural_hub.qb_aimbot.smooth_enabled = v end })
+        qb_general:AddSlider({ Name = "Smooth Factor", Min = 1, Max = 20, Default = aural_hub.qb_aimbot.smooth_factor, Callback = function(v) aural_hub.qb_aimbot.smooth_factor = v end })
+        qb_general:AddToggle({ Name = "Target Lock", Default = aural_hub.qb_aimbot.target_lock, Callback = function(v) aural_hub.qb_aimbot.target_lock = v; if not v then aural_hub.qb_aimbot.locked_target = nil end end })
+        qb_general:AddToggle({ Name = "Scramble Mode", Default = aural_hub.qb_aimbot.scramble_mode, Callback = function(v) aural_hub.qb_aimbot.scramble_mode = v end })
+        qb_general:AddSlider({ Name = "Scramble Speed", Min = 16, Max = 50, Default = aural_hub.qb_aimbot.scramble_speed, Callback = function(v) aural_hub.qb_aimbot.scramble_speed = v end })
+        qb_general:AddColorPicker({ Name = "Prediction Color", Default = aural_hub.qb_aimbot.prediction_color, Callback = function(v) aural_hub.qb_aimbot.prediction_color = v end })
+
+        local qb_target = qb_tab:AddSection({ Name = "Targeting", Side = "Left" })
+        qb_target:AddSlider({ Name = "FOV", Min = 0, Max = 1000, Default = aural_hub.qb_aimbot.fov, Callback = function(v) aural_hub.qb_aimbot.fov = v end })
+        qb_target:AddToggle({ Name = "Show FOV Circle", Default = aural_hub.qb_aimbot.show_fov, Callback = function(v) aural_hub.qb_aimbot.show_fov = v end })
+        qb_target:AddDropdown({ Name = "Target Priority", Options = {"Closest To Mouse", "Most Open", "Furthest Downfield"}, Default = aural_hub.qb_aimbot.target_priority, Callback = function(v)
+            aural_hub.qb_aimbot.target_priority = v
+            aural_hub.qb_aimbot.locked_target = nil
+        end })
+        qb_target:AddToggle({ Name = "Interception Avoidance", Default = aural_hub.qb_aimbot.interception_avoidance, Callback = function(v) aural_hub.qb_aimbot.interception_avoidance = v end })
+        qb_target:AddSlider({ Name = "Min Open Distance", Min = 5, Max = 50, Default = aural_hub.qb_aimbot.min_open_distance, Callback = function(v) aural_hub.qb_aimbot.min_open_distance = v end })
+        qb_target:AddSlider({ Name = "Throw Angle", Min = 0, Max = 85, Default = aural_hub.qb_aimbot.throw_angle, Callback = function(v) aural_hub.qb_aimbot.throw_angle = v end })
+        qb_target:AddSlider({ Name = "Bullet Angle", Min = 0, Max = 40, Default = aural_hub.qb_aimbot.bullet_angle, Callback = function(v) aural_hub.qb_aimbot.bullet_angle = v end })
+
+        local qb_auto = qb_tab:AddSection({ Name = "Automation", Side = "Right" })
+        qb_auto:AddToggle({ Name = "Auto Hike", Default = aural_hub.qb_aimbot.auto_hike, Callback = function(v) aural_hub.qb_aimbot.auto_hike = v end })
+        qb_auto:AddToggle({ Name = "Auto Throw", Default = aural_hub.qb_aimbot.auto_throw, Callback = function(v) aural_hub.qb_aimbot.auto_throw = v end })
+        qb_auto:AddSlider({ Name = "Auto Throw Delay", Min = 0, Max = 3, Default = aural_hub.qb_aimbot.auto_throw_delay, Callback = function(v) aural_hub.qb_aimbot.auto_throw_delay = v end })
+        qb_auto:AddToggle({ Name = "Receiver ESP", Default = aural_hub.qb_aimbot.receiver_esp, Callback = function(v) aural_hub.qb_aimbot.receiver_esp = v end })
+        qb_auto:AddToggle({ Name = "Show Routes", Default = aural_hub.qb_aimbot.show_routes, Callback = function(v) aural_hub.qb_aimbot.show_routes = v end })
+        qb_auto:AddToggle({ Name = "Show Distance", Default = aural_hub.qb_aimbot.show_distance, Callback = function(v) aural_hub.qb_aimbot.show_distance = v end })
+    end
+
+    return {
+        run = run
+    }
+
+end)
+
+-- // entry
+do
+    require("core/macros")
+    local services = require("core/services")
+    local config = require("core/config")
+
+    local ac_bypass = require("core/ac_bypass")
+    local gamepass = require("core/gamepass")
+    local magnets = require("features/catching/magnets")
+    local enhancements = require("features/catching/enhancements")
+    local tackle = require("features/defense/tackle")
+    local swat = require("features/defense/swat")
+    local physics = require("features/movement/physics")
+    local restrictions = require("features/movement/restrictions")
+    local auto_qb = require("features/automatics/auto_qb")
+    local auto_captain = require("features/automatics/auto_captain")
+    local auto_guard = require("features/automatics/auto_guard")
+    local aimbot = require("features/aimbot/aimbot")
+    local optimization = require("features/world/optimization")
+    local menu = require("ui/menu")
+
+    local state = config.state
+
+    local function load_mobile_ui()
+        if not services.is_mobile then return end
+
+        local mobile_gui = Instance.new("ScreenGui")
+        mobile_gui.Name = "ViseHubMobile"
+        mobile_gui.ResetOnSpawn = false
+        mobile_gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        mobile_gui.Parent = services.local_player.PlayerGui
+
+        local button_defs = {
+            { name = "Throw",   key = "Q",     color = Color3.fromRGB(50, 120, 255), order = 1 },
+            { name = "Tackle",  key = "Click", color = Color3.fromRGB(255, 60, 60),  order = 2 },
+            { name = "QuickTP", key = "F",     color = Color3.fromRGB(60, 200, 60),  order = 3 },
+            { name = "Swat",    key = "R",     color = Color3.fromRGB(200, 150, 50), order = 4 },
+            { name = "Catch",   key = "C",     color = Color3.fromRGB(150, 50, 200), order = 5 },
+            { name = "FlyUp",   key = "Space", color = Color3.fromRGB(100, 200, 255),order = 6 },
+            { name = "FlyDown", key = "Shift", color = Color3.fromRGB(100, 150, 200),order = 7 },
+        }
+
+        for _, def in next, button_defs do
+            local btn = Instance.new("TextButton")
+            btn.Name = def.name .. "Btn"
+            btn.Size = UDim2.new(0, 60, 0, 60)
+            btn.Position = UDim2.new(1, -80, 1, -80 * def.order)
+            btn.BackgroundColor3 = def.color
+            btn.BackgroundTransparency = 0.3
+            btn.Text = def.name
+            btn.TextColor3 = Color3.new(1, 1, 1)
+            btn.TextScaled = true
+            btn.Font = Enum.Font.GothamBold
+            btn.Parent = mobile_gui
+
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0, 12)
+            corner.Parent = btn
+
+            local dragging = false
+            local drag_start, start_pos
+
+            btn.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = true
+                    drag_start = input.Position
+                    start_pos = btn.Position
+                end
+            end)
+
+            btn.InputChanged:Connect(function(input)
+                if dragging and input.UserInputType == Enum.UserInputType.Touch then
+                    local delta = input.Position - drag_start
+                    btn.Position = UDim2.new(
+                        start_pos.X.Scale, start_pos.X.Offset + delta.X,
+                        start_pos.Y.Scale, start_pos.Y.Offset + delta.Y
+                    )
+                end
+            end)
+
+            btn.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = false
+                end
+            end)
+
+            state.mobile_buttons[def.name] = btn
+        end
+    end
+
+    local function load_boundaries()
+        if game.PlaceId == 82866880824588 then
+            pcall(function()
+                local boundaries_folder = services.workspace.Models.Boundaries
+                for _, obj in next, boundaries_folder:GetChildren() do
+                    table.insert(state.boundaries, obj)
+                end
+            end)
+        end
+    end
+
+    local function main()
+        ac_bypass.run()
+        task.wait()
+
+        gamepass.run()
+        load_mobile_ui()
+        load_boundaries()
+
+        magnets.run()
+        enhancements.run()
+        tackle.run()
+        swat.run()
+        physics.run()
+        restrictions.run()
+        auto_qb.run()
+        auto_captain.run()
+        auto_guard.run()
+        aimbot.run()
+        optimization.run()
+
+        menu.run()
+    end
+
+    main()
+
+end
