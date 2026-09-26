@@ -292,7 +292,23 @@ J:AutoTrack()
 
 local zolar = loadstring(game:HttpGet("https://raw.githubusercontent.com/wimazawa-eng/ap/refs/heads/main/Testing.lua.txt"))()
 
-local hookfunction = oth and oth.hook or hookfunction
+local othsupported = {
+    "Delta",
+    "Potassium",
+    "Volt",
+    "Wave",
+    "Synapse Z"
+}
+
+local old = hookfunction
+
+for i, v in pairs(othsupported) do
+    if identifyexecutor() == othsupported[i] then
+        hookfunction = oth.hook
+    else
+        hookfunction = old
+    end
+end
 
 local Players = cloneref(game:GetService("Players"))
 local LocalPlayer = Players.LocalPlayer
