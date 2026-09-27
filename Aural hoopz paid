@@ -1152,6 +1152,22 @@ do
     end
 end
 
+local teammatesCache = setmetatable({}, { __mode = "k" })
+local lastTeammateRefresh = 0
+
+local function isTeammatePlayer(player)
+    -- reuse getTeammates(), refreshed at most every 0.5s
+    local now = os.clock()
+    if now - lastTeammateRefresh > 0.5 or not teammatesCache.list then
+        teammatesCache.list = getTeammates()
+        lastTeammateRefresh = now
+    end
+    for _, tm in ipairs(teammatesCache.list) do
+        if tm == player then return true end
+    end
+    return false
+end
+
 local predictionenabled = false
 local posehistory = {}
 local localcharacterclone = nil
@@ -1587,48 +1603,55 @@ do
     end
 
     function getClosestDribbler()
-        local char = LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if not root then return nil end
-        local closestPlayer = nil
-        local closestDistance = math.huge
-        for _, part in workspace:GetPartBoundsInRadius(root.Position, s.Defending.AutoGuardRange) do
-            if part:IsA("BasePart") and part.Name == "Ball" and part.Parent:IsA("Folder") then
-                local holder = part.Parent.Parent
-                local holderRoot = holder and holder:FindFirstChild("HumanoidRootPart")
-                if holderRoot then
-                    local distance = (holderRoot.Position - root.Position).Magnitude
-                    if distance < closestDistance then
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local closestPlayer = nil
+    local closestDistance = math.huge
+    for _, part in workspace:GetPartBoundsInRadius(root.Position, s.Defending.AutoGuardRange) do
+        if part:IsA("BasePart") and part.Name == "Ball" and part.Parent:IsA("Folder") then
+            local holder = part.Parent.Parent
+            local holderRoot = holder and holder:FindFirstChild("HumanoidRootPart")
+            if holderRoot then
+                local distance = (holderRoot.Position - root.Position).Magnitude
+                if distance < closestDistance then
+                    local holderPlayer
+                    for _, player in Players:GetPlayers() do
+                        if player.Character == holder then holderPlayer = player; break end
+                    end
+                    -- TEAM CHECK: skip teammates
+                    if holderPlayer and not isTeammatePlayer(holderPlayer) then
                         closestDistance = distance
-                        for _, player in Players:GetPlayers() do
-                            if player.Character == holder then closestPlayer = player; break end
-                        end
+                        closestPlayer = holderPlayer
                     end
                 end
             end
         end
-        return closestPlayer
     end
+    return closestPlayer
+end
 
     function getClosestPlayer()
-        local char = LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if not root then return nil end
-        local closestPlayer = nil
-        local closestDistance = math.huge
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player == LocalPlayer then continue end
-            local c = player.Character
-            local hrp = c and c:FindFirstChild("HumanoidRootPart")
-            if not hrp then continue end
-            local dist = (hrp.Position - root.Position).Magnitude
-            if dist < s.Defending.AutoGuardRange and dist < closestDistance then
-                closestDistance = dist
-                closestPlayer = player
-            end
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local closestPlayer = nil
+    local closestDistance = math.huge
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        -- TEAM CHECK: skip teammates
+        if isTeammatePlayer(player) then continue end
+        local c = player.Character
+        local hrp = c and c:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+        local dist = (hrp.Position - root.Position).Magnitude
+        if dist < s.Defending.AutoGuardRange and dist < closestDistance then
+            closestDistance = dist
+            closestPlayer = player
         end
-        return closestPlayer
     end
+    return closestPlayer
+end
 
     local function getGuardMode()
         local mode = tostring(s.Defending.AutoGuardMode or "Prediction")
