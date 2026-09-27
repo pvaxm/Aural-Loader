@@ -1,0 +1,1317 @@
+local _print = print
+local _warn = warn
+_G.print = function(...) end
+_G.warn = function(...) end
+
+local Ophyn = loadstring(game:HttpGet("https://ophyn.space/interface"))()
+
+Ophyn.new({
+    Title = "Aural Freemium",
+    Description = "Key System",
+    Logo = "rbxassetid://105577669304412",
+    Theme = "Amethyst",
+    Folder = "AuralHubMisc",
+
+    getkey = true,
+    KeySystem = {
+        SaveKey = true,
+        API = {
+            {
+                Type = "panda",
+                ServiceId = "auralfreemium",
+            },
+        },
+    },
+
+    Intro = "true",
+    startintro_size = 80,
+    squareintro_time = 1.2,
+
+    Changelogocolor = true,
+    Changeiconscolor = true,
+    NotifStyle = "1",
+
+    discord_link = "discord.gg/auralhub",
+    website_link = "https://auralhub.xyz",
+
+    Discord = "true",
+    Website = "true",
+
+   SupportedGames = {
+    [6229116934] = true,
+    [3623096087] = true,
+},
+
+    Callback = function(key)
+
+local Airflow = loadstring(game:HttpGet("https://raw.githubusercontent.com/PookiePepelsss/Airflow-UI/refs/heads/main/Source.luau"))()
+
+local Players            = game:GetService("Players")
+local ReplicatedStorage  = game:GetService("ReplicatedStorage")
+local RunService         = game:GetService("RunService")
+local TweenService       = game:GetService("TweenService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local CoreGui            = game:GetService("CoreGui")
+local Debris             = game:GetService("Debris")
+local VirtualUser        = game:GetService("VirtualUser")
+local Lighting           = game:GetService("Lighting")
+
+local player    = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local GAME_NAME = (MarketplaceService:GetProductInfo(game.PlaceId) or {}).Name or "Unknown Game"
+
+local DISCORD = "https://discord.gg/auralhub"
+
+local State = {
+    autoRep           = false,
+    autoFastRep       = false,
+    autoLift          = false,
+    autoFastRock      = false,
+    autoReb           = false,
+    anchored          = false,
+    fastRebirth       = false,
+    fastRepRare       = false,
+    fastRepCommon     = false,
+    autoBuyPet        = false,
+    autoEvolve        = false,
+    autoEatBoosts     = false,
+    autoSpinWheel     = false,
+    autoTpMuscleKing  = false,
+    autoSellAll       = false,
+    autoFarmBoss      = false,
+    autoFastBossHit   = false,
+    espEnabled        = false,
+    spectate          = false,
+}
+
+local Selections = {
+    rock        = "Tiny Rock",
+    dest        = "Spawn",
+    crystal     = "Industrial Crystal",
+    player      = nil,
+    crystalPet  = "Apex Overlord",
+    boss        = "Boss 1",
+    giftTarget  = nil,
+    giftAmount  = 10,
+    eggAmount   = 10,
+}
+
+local muscleEvent = player:WaitForChild("muscleEvent", 10)
+local rEvents     = ReplicatedStorage:WaitForChild("rEvents", 10)
+
+local Locations = {
+    Spawn               = CFrame.new(0, 4, 0),
+    ["Frost Island"]    = CFrame.new(-2917.47314, 12.1008654, -178.445648),
+    ["Mythical Island"] = CFrame.new(2250.77808, 28.6999931, 1073.22668),
+    ["Eternal Island"]  = CFrame.new(-7173.3418, 40.8608437, -1092.33618),
+    ["Legend Island"]   = CFrame.new(4551.51514, 997.727234, -4018.90186),
+    ["Muscle King Gym"] = CFrame.new(-8772.97266, 24.4272194, -5638.37402),
+    ["Industrial Gym"]  = CFrame.new(-5000, 129.197, 5000),
+}
+
+local Crystals = {
+    ["Industrial Crystal"]    = CFrame.new(-4283.7627, 100.802307, 4943.14209),
+    ["Jungle Crystal"]        = CFrame.new(-7428.37305, 105.441559, 2392.7417),
+    ["Legend Crystal"]        = CFrame.new(4072.38135, 1005.88605, -3542.36084),
+    ["Galaxy Oracle Crystal"] = CFrame.new(-9046.12988, 31.9248829, -5865.37549),
+    ["Mythical Crystal"]      = CFrame.new(2758.33765, 16.6626244, 1160.64355),
+    ["Inferno Crystal"]       = CFrame.new(-6896.55859, 16.6626244, -1564.12903),
+    ["Frost Crystal"]         = CFrame.new(-2826.48511, 16.6626244, -118.563972),
+}
+
+local BossMap = {
+    ["Boss 1"] = "Boss1", ["Boss 2"] = "Boss2", ["Boss 3"] = "Boss3",
+    ["Boss 4"] = "Boss4", ["Boss 5"] = "Boss5", ["Boss Rainbow"] = "BossRainbow",
+}
+
+local function equipTool(name)
+    local char = player.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    local tool = char:FindFirstChild(name) or (player:FindFirstChild("Backpack") and player.Backpack:FindFirstChild(name))
+    if tool and tool.Parent ~= char then
+        hum:EquipTool(tool)
+    end
+end
+
+local function findRock(durability)
+    local folder = workspace:FindFirstChild("machinesFolder")
+    if not folder then return nil end
+    for _, v in ipairs(folder:GetDescendants()) do
+        if v.Name == "neededDurability" and v:IsA("ValueBase") and tonumber(v.Value) == durability then
+            local rock = v.Parent and v.Parent:FindFirstChild("Rock")
+            if rock and rock:IsA("BasePart") then return rock end
+        end
+    end
+    return nil
+end
+
+local function hrp()
+    local char = player.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function hum()
+    local char = player.Character
+    return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+local function unequipAll()
+    local folder = player:FindFirstChild("petsFolder")
+    if not folder then return end
+    for _, cat in ipairs(folder:GetChildren()) do
+        if cat:IsA("Folder") then
+            for _, pet in ipairs(cat:GetChildren()) do
+                pcall(function()
+                    rEvents.equipPetEvent:FireServer("unequipPet", pet)
+                end)
+            end
+        end
+    end
+    task.wait(0.1)
+end
+
+local function equipPetsByRarity(rarity, name)
+    unequipAll()
+    task.wait(0.15)
+    local folder = player:FindFirstChild("petsFolder")
+    local cat = folder and folder:FindFirstChild(rarity)
+    if not cat then return end
+    local found, count = {}, 0
+    for _, pet in ipairs(cat:GetChildren()) do
+        if pet.Name == name then table.insert(found, pet) end
+    end
+    for i = 1, #found do
+        if count >= 9 then break end
+        pcall(function() rEvents.equipPetEvent:FireServer("equipPet", found[i]) end)
+        count += 1
+    end
+end
+
+local function equipFastPets()
+    unequipAll()
+    local folder = player:FindFirstChild("petsFolder")
+    local unique = folder and folder:FindFirstChild("Unique")
+    if not unique then return end
+    local omega, swift, power = {}, {}, {}
+    for _, pet in ipairs(unique:GetChildren()) do
+        if pet.Name == "Omega Overlord" then table.insert(omega, pet)
+        elseif pet.Name == "Swift Samurai" then table.insert(swift, pet)
+        elseif pet.Name == "Powercore Hound" then table.insert(power, pet)
+        end
+    end
+    local count, total = 0, 0
+    for i = #omega, 1, -1 do
+        if count < 9 and total < 100 then
+            pcall(function() rEvents.equipPetEvent:FireServer("equipPet", omega[i]) end)
+            total += 20; count += 1
+        end
+    end
+    for i = #swift, 1, -1 do
+        if count < 9 and total < 100 then
+            pcall(function() rEvents.equipPetEvent:FireServer("equipPet", swift[i]) end)
+            total += 15; count += 1
+        end
+    end
+    if total >= 100 then
+        for i = #power, 1, -1 do
+            if count < 9 then
+                pcall(function() rEvents.equipPetEvent:FireServer("equipPet", power[i]) end)
+                count += 1
+            end
+        end
+    end
+end
+
+local function equipRebirthPets()
+    unequipAll()
+    local folder = player:FindFirstChild("petsFolder")
+    local unique = folder and folder:FindFirstChild("Unique")
+    if not unique then return end
+    local hydra, tribal = {}, {}
+    for _, pet in ipairs(unique:GetChildren()) do
+        if pet.Name == "Titanium Hydra" then table.insert(hydra, pet)
+        elseif pet.Name == "Tribal Overlord" then table.insert(tribal, pet)
+        end
+    end
+    local count = 0
+    for i = 1, #hydra do
+        if count < 9 then
+            pcall(function() rEvents.equipPetEvent:FireServer("equipPet", hydra[i]) end)
+            count += 1
+        end
+    end
+    for i = 1, #tribal do
+        if count < 9 then
+            pcall(function() rEvents.equipPetEvent:FireServer("equipPet", tribal[i]) end)
+            count += 1
+        end
+    end
+end
+
+local function findBoss()
+    local events = workspace:FindFirstChild("Events")
+    local arena = events and events:FindFirstChild("BossArena")
+    if arena then
+        for _, child in ipairs(arena:GetChildren()) do
+            local boss = child:FindFirstChild("Boss")
+            if boss and boss:IsA("BasePart") and boss.Transparency < 1 then return boss end
+        end
+    end
+    return nil
+end
+
+local function findSpecificBoss(id)
+    local events = workspace:FindFirstChild("Events")
+    local arena = events and events:FindFirstChild("BossArena")
+    if arena then
+        local slot = arena:FindFirstChild(id)
+        if slot then
+            local boss = slot:FindFirstChild("Boss")
+            if boss and boss:IsA("BasePart") then return boss end
+        end
+    end
+    return nil
+end
+
+local function openBossChest(hrpRef)
+    local chest = workspace:FindFirstChild("BossChest")
+    if chest and hrpRef then
+        local root = chest:FindFirstChild("Root")
+        local prompt = root and (root:FindFirstChild("bossChestPrompt") or root:FindFirstChildOfClass("ProximityPrompt"))
+        if prompt then
+            pcall(function() hrpRef.CFrame = root.CFrame * CFrame.new(0, 3, 0) end)
+            if type(fireproximityprompt) == "function" then fireproximityprompt(prompt) end
+        end
+    end
+end
+
+local function killChar()
+    local h = hum()
+    if h and h.Health > 0 then h.Health = 0 end
+end
+
+local function useItem(name)
+    local char = player.Character
+    local bp = player:FindFirstChild("Backpack")
+    if not char or not bp or not muscleEvent then return false end
+    local item = char:FindFirstChild(name) or bp:FindFirstChild(name)
+    if item then
+        if item.Parent == bp then item.Parent = char; task.wait(0.02) end
+        local key
+        if name == "Protein Egg" then
+            key = "proteinEgg"
+        else
+            local first = name:match("^(%S+)")
+            key = first:lower() .. name:sub(#first + 1):gsub("%s+", "")
+        end
+        muscleEvent:FireServer(key, item)
+        return true
+    end
+    return false
+end
+
+local function eatEggs(n)
+    for _ = 1, n do
+        if useItem("Protein Egg") then task.wait(0.12) else break end
+    end
+    task.wait(0.3)
+    killChar()
+end
+
+local function currentRebirthTarget()
+    local ls = player:FindFirstChild("leaderstats")
+    local rebs = ls and ls:FindFirstChild("Rebirths")
+    return 5000 + (rebs and rebs.Value or 0) * 2550
+end
+
+local function currentStrength()
+    local ls = player:FindFirstChild("leaderstats")
+    local s = ls and ls:FindFirstChild("Strength")
+    return s and s.Value or 0
+end
+
+local function currentRebirths()
+    local ls = player:FindFirstChild("leaderstats")
+    local r = ls and ls:FindFirstChild("Rebirths")
+    return r and r.Value or 0
+end
+
+local function doFastRebirth()
+    local target = currentRebirthTarget()
+    local reps = player.MembershipType == Enum.MembershipType.Premium and 6 or 12
+    while State.fastRebirth and currentStrength() < target do
+        equipTool("Weight")
+        for _ = 1, reps do
+            pcall(function() muscleEvent:FireServer("rep") end)
+        end
+        task.wait(0.01)
+    end
+    if State.fastRebirth and currentStrength() >= target then
+        equipRebirthPets()
+        task.wait(0.2)
+        local prev = currentRebirths()
+        local remote = rEvents:FindFirstChild("rebirthRemote")
+        if remote then
+            local elapsed, done = 0, false
+            repeat
+                pcall(function() remote:InvokeServer("rebirthRequest") end)
+                task.wait(0.05)
+                elapsed += 0.05
+                done = currentRebirths() > prev or not State.fastRebirth or elapsed > 2
+            until done
+        end
+    end
+end
+
+local fastRebirthWorkerActive = false
+local function startFastRebirthWorker()
+    if fastRebirthWorkerActive then return end
+    fastRebirthWorkerActive = true
+    task.spawn(function()
+        while State.fastRebirth do
+            equipFastPets()
+            doFastRebirth()
+            task.wait(0.2)
+        end
+        fastRebirthWorkerActive = false
+    end)
+end
+
+local function runWorkerWhile(flagKey, fn, interval)
+    task.spawn(function()
+        while State[flagKey] do
+            pcall(fn)
+            task.wait(interval or 0.1)
+        end
+    end)
+end
+
+local BoostItemList = {"Tropical Shake","Energy Shake","Protein Bar","TOUGH Bar","Protein Shake","ULTRA Shake","Energy Bar"}
+
+runWorkerWhile("autoEatBoosts", function()
+    for _, item in ipairs(BoostItemList) do
+        if not State.autoEatBoosts then break end
+        if useItem(item) then task.wait(0.08) end
+    end
+    task.wait(0.15)
+end, 0.15)
+
+runWorkerWhile("autoSpinWheel", function()
+    local wheelRemote = rEvents and rEvents:FindFirstChild("openFortuneWheelRemote")
+    local shared = ReplicatedStorage:FindFirstChild("shared")
+    local catalogs = shared and shared:FindFirstChild("catalogs")
+    local chances = catalogs and catalogs:FindFirstChild("fortuneWheelChances")
+    local wheelCatalog = chances and chances:FindFirstChild("Fortune Wheel")
+    if wheelRemote and wheelCatalog then
+        pcall(function() wheelRemote:InvokeServer("openFortuneWheel", wheelCatalog) end)
+    end
+end, 0.5)
+
+runWorkerWhile("autoTpMuscleKing", function()
+    local h = hrp()
+    local health = hum()
+    if h and health and health.Health > 0 then
+        h.CFrame = Locations["Muscle King Gym"]
+    end
+end, 0.1)
+
+runWorkerWhile("autoSellAll", function()
+    local sellEv = rEvents:FindFirstChild("sellPetEvent")
+    if not sellEv then return end
+    local folder = player:FindFirstChild("petsFolder")
+    if folder then
+        for _, cat in ipairs(folder:GetChildren()) do
+            if not State.autoSellAll then break end
+            for _, pet in ipairs(cat:GetChildren()) do
+                if not State.autoSellAll then break end
+                sellEv:FireServer("sellPet", pet)
+                task.wait(0.05)
+            end
+        end
+    end
+end, 0.5)
+
+local function copyDiscord()
+    if setclipboard then setclipboard(DISCORD) end
+end
+
+Airflow:LoadFont({ Name = "ValleySans" })
+local Window = Airflow:CreateWindow({
+    Name = "Aural Free",
+    Icon = "rbxassetid://105577669304412",
+    LoadingSubtitle = "Muscle Legends",
+    ToggleUIKeybind = "RightControl",
+    ConfigurationSaving = { Enabled = true, FolderName = "AuralFree", FileName = "default" },
+    Home = {
+        Name = "Home",
+        Stats = { "FPS", "Ping", "Executor", "Game", "Region", "Time" },
+        Pages = {
+            {
+                Name = "Changelog",
+                Icon = "scroll-text",
+                Entries = {
+                    { Title = "v1.0", Tag = "Latest", Changes = { "Hi i added muscle legends for yall", "few changes, added Fast Rebirth and Fast Rep", "BAC" } },
+                },
+            },
+            {
+                Name = "Info",
+                Icon = "info",
+                Content = "Aural Free — Muscle Legends. Every toggle persists through the config manager.",
+            },
+        },
+    },
+})
+
+local Farming = Window:CreateTab({ Name = "Farming", Desc = "Strength, rebirth, boosts", Icon = "dumbbell" })
+
+Farming:CreateSection("Strength")
+
+Farming:CreateToggle({
+    Name = "Auto Rep",
+    Desc = "Fires muscleEvent rep on loop",
+    Default = false,
+    Flag = "AutoRep",
+    Callback = function(v)
+        State.autoRep = v
+        if v then
+            task.spawn(function()
+                while State.autoRep do
+                    equipTool("Weight")
+                    pcall(function() muscleEvent:FireServer("rep") end)
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end,
+})
+
+Farming:CreateToggle({
+    Name = "Auto Fast Rep",
+    Desc = "15 rep fires per 0.07s",
+    Default = false,
+    Flag = "AutoFastRep",
+    Callback = function(v)
+        State.autoFastRep = v
+        if v then
+            task.spawn(function()
+                while State.autoFastRep do
+                    equipTool("Weight")
+                    for _ = 1, 15 do
+                        task.spawn(function() pcall(function() muscleEvent:FireServer("rep") end) end)
+                    end
+                    task.wait(0.07)
+                end
+            end)
+        end
+    end,
+})
+
+Farming:CreateToggle({
+    Name = "Free Auto Lift",
+    Desc = "Sets AutoLiftEnabled attribute",
+    Default = false,
+    Flag = "AutoLift",
+    Callback = function(v)
+        State.autoLift = v
+        player:SetAttribute("AutoLiftEnabled", v)
+    end,
+})
+
+Farming:CreateSection("Durability Glitch")
+
+Farming:CreateDropdown({
+    Name = "Select Rock",
+    Options = { "Tiny Rock","Starter Rock","Beach Rock","Frost Rock","Mythical Rock","Eternal Rock","Legend Rock","Muscle King Rock","Jungle Rock","Industrial Rock" },
+    Default = "Tiny Rock",
+    Flag = "RockSelect",
+    Callback = function(v) Selections.rock = v end,
+})
+
+Farming:CreateToggle({
+    Name = "Auto Fast Rock Hit",
+    Desc = "Resizes and teleports rock to RightHand, fires punch",
+    Default = false,
+    Flag = "AutoFastRock",
+    Callback = function(v)
+        State.autoFastRock = v
+        if v then
+            task.spawn(function()
+                while State.autoFastRock do
+                    equipTool("Punch")
+                    local rock = findRock(0)
+                    local char = player.Character
+                    local lh = char and char:FindFirstChild("LeftHand")
+                    local rh = char and char:FindFirstChild("RightHand")
+                    if rock and lh and rh then
+                        pcall(function()
+                            rock.Size = Vector3.new(2, 1, 1)
+                            rock.Transparency = 1
+                            rock.CanCollide = false
+                            rock.CFrame = rh.CFrame
+                        end)
+                        if type(firetouchinterest) == "function" then
+                            firetouchinterest(rock, rh, 0)
+                            firetouchinterest(rock, rh, 1)
+                        end
+                        pcall(function()
+                            muscleEvent:FireServer("punch", "leftHand")
+                            muscleEvent:FireServer("punch", "rightHand")
+                        end)
+                    end
+                    task.wait(0.001)
+                end
+            end)
+        end
+    end,
+})
+
+Farming:CreateSection("Rebirth")
+
+Farming:CreateToggle({
+    Name = "Auto Rebirth",
+    Desc = "Invokes rebirth when strength hits threshold",
+    Default = false,
+    Flag = "AutoReb",
+    Callback = function(v)
+        State.autoReb = v
+        if v then
+            task.spawn(function()
+                local remote = rEvents:FindFirstChild("rebirthRemote")
+                if not remote then return end
+                while State.autoReb do
+                    if currentStrength() >= currentRebirthTarget() then
+                        pcall(function() remote:InvokeServer("rebirthRequest") end)
+                        task.wait(1.5)
+                    else
+                        task.wait(0.5)
+                    end
+                end
+            end)
+        end
+    end,
+})
+
+Farming:CreateToggle({
+    Name = "Fast Rebirth",
+    Desc = "Auto-equip pet sets, rep loop, invoke rebirth",
+    Default = false,
+    Flag = "FastRebirth",
+    Callback = function(v)
+        State.fastRebirth = v
+        if v then startFastRebirthWorker() end
+    end,
+})
+
+Farming:CreateSection("Golem Fast Rep")
+
+Farming:CreateToggle({
+    Name = "Fast Rep with Rare Golem",
+    Desc = "Equips Rare Boss Pet, 15 rep fires per 0.07s",
+    Default = false,
+    Flag = "FastRepRare",
+    Callback = function(v)
+        State.fastRepRare = v
+        if v then
+            equipPetsByRarity("Rare", "Rare Boss Pet")
+            task.spawn(function()
+                while State.fastRepRare do
+                    equipTool("Weight")
+                    for _ = 1, 15 do
+                        task.spawn(function() pcall(function() muscleEvent:FireServer("rep") end) end)
+                    end
+                    task.wait(0.07)
+                end
+            end)
+        end
+    end,
+})
+
+Farming:CreateToggle({
+    Name = "Fast Rep with Common Golem",
+    Desc = "Equips Common Boss Pet, 15 rep fires per 0.07s",
+    Default = false,
+    Flag = "FastRepCommon",
+    Callback = function(v)
+        State.fastRepCommon = v
+        if v then
+            equipPetsByRarity("Advanced", "Common Boss Pet")
+            task.spawn(function()
+                while State.fastRepCommon do
+                    equipTool("Weight")
+                    for _ = 1, 15 do
+                        task.spawn(function() pcall(function() muscleEvent:FireServer("rep") end) end)
+                    end
+                    task.wait(0.07)
+                end
+            end)
+        end
+    end,
+})
+
+Farming:CreateSection("Boosts")
+
+Farming:CreateInput({
+    Name = "Eggs amount",
+    Placeholder = "10",
+    Default = "10",
+    Flag = "EggAmount",
+    Callback = function(text)
+        local n = tonumber(text)
+        if n and n > 0 then Selections.eggAmount = math.floor(n) end
+    end,
+})
+
+Farming:CreateButton({
+    Name = "Eat Selected Amount",
+    Desc = "Fires proteinEgg then kills character",
+    Icon = "egg",
+    Callback = function()
+        task.spawn(function() eatEggs(Selections.eggAmount) end)
+    end,
+})
+
+Farming:CreateToggle({
+    Name = "Auto Eat All Boosts",
+    Desc = "Cycles every boost item continuously",
+    Default = false,
+    Flag = "AutoEatBoosts",
+    Callback = function(v)
+        State.autoEatBoosts = v
+        if not v then killChar() end
+    end,
+})
+
+Farming:CreateToggle({
+    Name = "Auto Spin Wheel",
+    Desc = "Invokes openFortuneWheelRemote on loop",
+    Default = false,
+    Flag = "AutoSpinWheel",
+    Callback = function(v) State.autoSpinWheel = v end,
+})
+
+Farming:CreateToggle({
+    Name = "Auto Teleport to Muscle King",
+    Desc = "Anchors position to Muscle King Gym every 0.1s",
+    Default = false,
+    Flag = "AutoTpMuscleKing",
+    Callback = function(v) State.autoTpMuscleKing = v end,
+})
+
+Farming:CreateSection("Misc")
+
+Farming:CreateToggle({
+    Name = "Lock Position (Anchor)",
+    Desc = "Anchors your HumanoidRootPart",
+    Default = false,
+    Flag = "Anchor",
+    Callback = function(v)
+        State.anchored = v
+        local h = hrp()
+        if h then h.Anchored = v end
+    end,
+})
+
+Farming:CreateButton({
+    Name = "Copy Discord Link",
+    Icon = "copy",
+    Callback = copyDiscord,
+})
+
+local Teleports = Window:CreateTab({ Name = "Teleports", Desc = "Islands, crystals, players", Icon = "map-pin" })
+
+Teleports:CreateSection("Island Travel")
+
+Teleports:CreateDropdown({
+    Name = "Select Destination",
+    Options = { "Spawn","Muscle King Gym","Industrial Gym","Frost Island","Mythical Island","Eternal Island","Legend Island" },
+    Default = "Spawn",
+    Flag = "DestSelect",
+    Callback = function(v) Selections.dest = v end,
+})
+
+Teleports:CreateButton({
+    Name = "Teleport Now",
+    Icon = "navigation",
+    Callback = function()
+        local cf = Locations[Selections.dest]
+        local h = hrp()
+        if cf and h then h.CFrame = cf end
+    end,
+})
+
+Teleports:CreateSection("Crystal Teleport")
+
+Teleports:CreateDropdown({
+    Name = "Select Crystal",
+    Options = { "Industrial Crystal","Jungle Crystal","Legend Crystal","Galaxy Oracle Crystal","Mythical Crystal","Inferno Crystal","Frost Crystal" },
+    Default = "Industrial Crystal",
+    Flag = "CrystalSelect",
+    Callback = function(v) Selections.crystal = v end,
+})
+
+Teleports:CreateButton({
+    Name = "Teleport Now",
+    Icon = "gem",
+    Callback = function()
+        local cf = Crystals[Selections.crystal]
+        local h = hrp()
+        if cf and h then h.CFrame = cf end
+    end,
+})
+
+Teleports:CreateSection("Player Teleport")
+
+local playerDropdown
+playerDropdown = Teleports:CreateDropdown({
+    Name = "Select Player",
+    Options = {},
+    Flag = "PlayerSelect",
+    Callback = function(v) Selections.player = v end,
+})
+
+task.spawn(function()
+    while true do
+        local names = {}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= player then table.insert(names, p.Name) end
+        end
+        pcall(function() playerDropdown:Refresh(names, true) end)
+        task.wait(5)
+    end
+end)
+
+Teleports:CreateButton({
+    Name = "Teleport to Player",
+    Icon = "user",
+    Callback = function()
+        if not Selections.player then return end
+        local target = Players:FindFirstChild(Selections.player)
+        local tHRP = target and target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+        local myHRP = hrp()
+        if tHRP and myHRP then myHRP.CFrame = tHRP.CFrame * CFrame.new(0, 0, 3) end
+    end,
+})
+
+Teleports:CreateToggle({
+    Name = "Spectate Player",
+    Desc = "Locks camera to selected player",
+    Default = false,
+    Flag = "Spectate",
+    Callback = function(v)
+        State.spectate = v
+        local cam = workspace.CurrentCamera
+        if v then
+            task.spawn(function()
+                while State.spectate do
+                    local target = Players:FindFirstChild(Selections.player)
+                    local h = target and target.Character and target.Character:FindFirstChildOfClass("Humanoid")
+                    if h and cam.CameraSubject ~= h then cam.CameraSubject = h end
+                    task.wait(0.1)
+                end
+            end)
+        else
+            local h = hum()
+            if h then cam.CameraSubject = h end
+        end
+    end,
+})
+
+local Boss = Window:CreateTab({ Name = "Boss", Desc = "Boss farming and chest opening", Icon = "swords" })
+
+Boss:CreateToggle({
+    Name = "Auto Farm Boss",
+    Desc = "Dodges attacks, punches boss, opens chest",
+    Default = false,
+    Flag = "AutoFarmBoss",
+    Callback = function(v)
+        State.autoFarmBoss = v
+        if v then
+            task.spawn(function()
+                while State.autoFarmBoss do
+                    local h = hum()
+                    if h and h.Health > 0 then
+                        equipTool("Weight")
+                        pcall(function() muscleEvent:FireServer("rep") end)
+                    end
+                    task.wait(0.1)
+                end
+            end)
+            task.spawn(function()
+                while State.autoFarmBoss do
+                    local char = player.Character
+                    if not char or not char:FindFirstChild("HumanoidRootPart") or (hum() and hum().Health <= 0) then
+                        player.CharacterAdded:Wait()
+                        task.wait(0.5)
+                    else
+                        equipTool("Punch")
+                        local boss = findBoss()
+                        local h = hrp()
+                        local rh = char:FindFirstChild("RightHand")
+                        local health = hum()
+                        if h and rh and health and health.Health > 0 then
+                            if boss then
+                                if not workspace:FindFirstChild("bossStompTelegraph") then
+                                    if type(firetouchinterest) == "function" then
+                                        firetouchinterest(boss, rh, 0)
+                                        firetouchinterest(boss, rh, 1)
+                                    end
+                                    pcall(function()
+                                        muscleEvent:FireServer("punch", "leftHand")
+                                        muscleEvent:FireServer("punch", "rightHand")
+                                    end)
+                                end
+                            else
+                                openBossChest(h)
+                            end
+                        end
+                    end
+                    task.wait(0.001)
+                end
+            end)
+        end
+    end,
+})
+
+Boss:CreateSection("Specific Boss")
+
+Boss:CreateDropdown({
+    Name = "Select Boss",
+    Options = { "Boss 1","Boss 2","Boss 3","Boss 4","Boss 5","Boss Rainbow" },
+    Default = "Boss 1",
+    Flag = "BossSelect",
+    Callback = function(v) Selections.boss = v end,
+})
+
+Boss:CreateToggle({
+    Name = "Auto Fast Boss Hit",
+    Desc = "PlatformStands to boss, fires punch",
+    Default = false,
+    Flag = "AutoFastBossHit",
+    Callback = function(v)
+        State.autoFastBossHit = v
+        if v then
+            task.spawn(function()
+                while State.autoFastBossHit do
+                    equipTool("Punch")
+                    local boss = findSpecificBoss(BossMap[Selections.boss] or "Boss1")
+                    local char = player.Character
+                    local h = hrp()
+                    local health = hum()
+                    local rh = char and char:FindFirstChild("RightHand")
+                    if boss and h and rh and health then
+                        pcall(function()
+                            for _, part in ipairs(char:GetChildren()) do
+                                if part:IsA("BasePart") then part.CanCollide = false end
+                            end
+                            health.PlatformStand = true
+                            h.CFrame = boss.CFrame * CFrame.new(0, 15, 0)
+                            h.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                            h.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                        end)
+                        if type(firetouchinterest) == "function" then
+                            firetouchinterest(boss, rh, 0)
+                            firetouchinterest(boss, rh, 1)
+                        end
+                        pcall(function()
+                            muscleEvent:FireServer("punch", "leftHand")
+                            muscleEvent:FireServer("punch", "rightHand")
+                        end)
+                    end
+                    task.wait(0.001)
+                end
+                pcall(function()
+                    local h = hum()
+                    if h then h.PlatformStand = false end
+                end)
+            end)
+        end
+    end,
+})
+
+local Pets = Window:CreateTab({ Name = "Pets", Desc = "Buy, evolve, sell", Icon = "paw-print" })
+
+Pets:CreateSection("Auto Buy")
+
+Pets:CreateDropdown({
+    Name = "Select Crystal / Pet",
+    Options = { "Apex Overlord","Core Pup","Volt Talon","Reactor Beast","Plasma Ravager","Titan Reactor","Neon Guardian","Cybernetic Showdown Dragon","Darkstar Hunter","Muscle Sensei","Infernal Dragon","Aether Spirit Bunny","Magic Butterfly","Ultra Birdie","Muscle King","Entropic Blast" },
+    Default = "Apex Overlord",
+    Flag = "CrystalPetSelect",
+    Callback = function(v) Selections.crystalPet = v end,
+})
+
+Pets:CreateToggle({
+    Name = "Auto Buy Pet / Aura",
+    Desc = "Invokes cPetShopRemote on loop",
+    Default = false,
+    Flag = "AutoBuyPet",
+    Callback = function(v)
+        State.autoBuyPet = v
+        if v then
+            task.spawn(function()
+                local shared = ReplicatedStorage:FindFirstChild("shared")
+                local runtime = shared and shared:FindFirstChild("runtime")
+                local shopFolder = (runtime and runtime:FindFirstChild("cPetShopFolder")) or ReplicatedStorage:FindFirstChild("cPetShopFolder")
+                local shopRemote = (rEvents and rEvents:FindFirstChild("cPetShopRemote")) or ReplicatedStorage:FindFirstChild("cPetShopRemote")
+                while State.autoBuyPet and shopFolder and shopRemote do
+                    pcall(function()
+                        local item = shopFolder:FindFirstChild(Selections.crystalPet)
+                        if item then shopRemote:InvokeServer(item) end
+                    end)
+                    task.wait(0.6)
+                end
+            end)
+        end
+    end,
+})
+
+Pets:CreateToggle({
+    Name = "Auto Evolve Pets",
+    Desc = "Evolves any pet with 5+ copies",
+    Default = false,
+    Flag = "AutoEvolve",
+    Callback = function(v)
+        State.autoEvolve = v
+        if v then
+            task.spawn(function()
+                local ev = rEvents:FindFirstChild("petEvolveEvent")
+                while State.autoEvolve and ev do
+                    pcall(function()
+                        local folder = player:FindFirstChild("petsFolder")
+                        if folder then
+                            local counts = {}
+                            for _, desc in ipairs(folder:GetDescendants()) do
+                                if desc:IsA("StringValue") and not desc:FindFirstAncestor("perksFolder") and not desc:FindFirstAncestor("Perks") then
+                                    counts[desc.Name] = (counts[desc.Name] or 0) + 1
+                                end
+                            end
+                            for name, count in pairs(counts) do
+                                if count >= 5 then
+                                    ev:FireServer("evolvePet", name)
+                                    task.wait(0.5)
+                                end
+                            end
+                        end
+                    end)
+                    task.wait(1.5)
+                end
+            end)
+        end
+    end,
+})
+
+Pets:CreateToggle({
+    Name = "Auto Sell All Inventory",
+    Desc = "Sells every pet in petsFolder",
+    Default = false,
+    Flag = "AutoSellAll",
+    Callback = function(v) State.autoSellAll = v end,
+})
+
+local Misc = Window:CreateTab({ Name = "Misc", Desc = "ESP, gifting, stability, codes", Icon = "wrench" })
+
+Misc:CreateSection("Gifting")
+
+local giftDropdown
+giftDropdown = Misc:CreateDropdown({
+    Name = "Select Player to Gift",
+    Options = {},
+    Flag = "GiftTarget",
+    Callback = function(v) Selections.giftTarget = v end,
+})
+
+Misc:CreateInput({
+    Name = "Amount of Eggs",
+    Placeholder = "10",
+    Default = "10",
+    Flag = "GiftAmount",
+    Callback = function(text)
+        local n = tonumber(text)
+        if n then Selections.giftAmount = math.max(0, math.floor(n)) end
+    end,
+})
+
+Misc:CreateButton({
+    Name = "Start Gifting Eggs",
+    Icon = "gift",
+    Callback = function()
+        if not Selections.giftTarget or Selections.giftAmount <= 0 then return end
+        local target = Players:FindFirstChild(Selections.giftTarget)
+        if not target then return end
+        local consumables = player:FindFirstChild("consumablesFolder")
+        if not consumables then return end
+        task.spawn(function()
+            local remote = rEvents:FindFirstChild("giftRemote")
+            if not remote then return end
+            local sent = 0
+            for _, item in ipairs(consumables:GetChildren()) do
+                if sent >= Selections.giftAmount then break end
+                if item.Name == "Protein Egg" then
+                    if pcall(function() return remote:InvokeServer("giftRequest", target, item) end) then
+                        sent += 1
+                    end
+                    task.wait(0.15)
+                end
+            end
+        end)
+    end,
+})
+
+Misc:CreateSection("Environment")
+
+Misc:CreateDropdown({
+    Name = "Change Time",
+    Options = { "Day", "Night" },
+    Default = "Day",
+    Flag = "TimeSelect",
+    Callback = function(v)
+        Lighting.ClockTime = v == "Night" and 0 or 9
+    end,
+})
+
+Misc:CreateSection("ESP")
+
+local ESPState = { tracers = {} }
+
+local function removeTracer(p)
+    if ESPState.tracers[p] then
+        if ESPState.tracers[p].Line then ESPState.tracers[p].Line:Remove() end
+        if ESPState.tracers[p].Connection then ESPState.tracers[p].Connection:Disconnect() end
+        ESPState.tracers[p] = nil
+    end
+    if p.Character then
+        local head = p.Character:FindFirstChild("Head")
+        local hrpPart = p.Character:FindFirstChild("HumanoidRootPart")
+        if head then local e = head:FindFirstChild("AuralESP") if e then e:Destroy() end end
+        if hrpPart then local e = hrpPart:FindFirstChild("AuralBox") if e then e:Destroy() end end
+    end
+end
+
+Misc:CreateToggle({
+    Name = "Player ESP (Wallhack)",
+    Desc = "Boxes, name/strength labels, tracers",
+    Default = false,
+    Flag = "ESP",
+    Callback = function(v)
+        State.espEnabled = v
+
+        if v then
+            task.spawn(function()
+                while State.espEnabled do
+                    for _, p in pairs(Players:GetPlayers()) do
+                        if p ~= player and p.Character then
+                            local hrpPart = p.Character:FindFirstChild("HumanoidRootPart")
+                            local head = p.Character:FindFirstChild("Head")
+                            if hrpPart and not hrpPart:FindFirstChild("AuralBox") then
+                                local box = Instance.new("BoxHandleAdornment")
+                                box.Name        = "AuralBox"
+                                box.Size        = Vector3.new(4, 6, 4)
+                                box.Color3      = Color3.fromRGB(0, 200, 255)
+                                box.AlwaysOnTop = true
+                                box.ZIndex      = 5
+                                box.Adornee     = hrpPart
+                                box.Parent      = hrpPart
+                            end
+                            if head and not head:FindFirstChild("AuralESP") then
+                                local ls = p:FindFirstChild("leaderstats")
+                                local str = ls and (ls:FindFirstChild("Strength") or ls:FindFirstChild("Strenght"))
+                                if str then
+                                    local bb = Instance.new("BillboardGui")
+                                    bb.Name          = "AuralESP"
+                                    bb.Size          = UDim2.new(0, 200, 0, 50)
+                                    bb.AlwaysOnTop   = true
+                                    bb.ExtentsOffset = Vector3.new(0, 3, 0)
+                                    bb.Parent        = head
+                                    local tl = Instance.new("TextLabel")
+                                    tl.Size                   = UDim2.fromScale(1, 1)
+                                    tl.BackgroundTransparency = 1
+                                    tl.TextColor3             = Color3.fromRGB(0, 200, 255)
+                                    tl.TextStrokeTransparency = 0
+                                    tl.Font                   = Enum.Font.GothamBold
+                                    tl.TextSize               = 14
+                                    tl.Text                   = p.Name .. " | STR: " .. tostring(str.Value)
+                                    tl.Parent                 = bb
+                                    str.Changed:Connect(function(n)
+                                        if bb and tl then tl.Text = p.Name .. " | STR: " .. tostring(n) end
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                    task.wait(2)
+                end
+            end)
+            task.spawn(function()
+                local cam = workspace.CurrentCamera
+                local function addTracer(p)
+                    if p == player or ESPState.tracers[p] then return end
+                    local line = Drawing.new("Line")
+                    line.Color        = Color3.fromRGB(0, 200, 255)
+                    line.Thickness    = 1.5
+                    line.Transparency = 1
+                    line.Visible      = false
+                    ESPState.tracers[p] = {
+                        Line = line,
+                        Connection = RunService.RenderStepped:Connect(function()
+                            if not State.espEnabled then removeTracer(p); return end
+                            local hrpPart = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+                            if hrpPart then
+                                local pos, vis = cam:WorldToViewportPoint(hrpPart.Position)
+                                if vis then
+                                    line.From    = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y)
+                                    line.To      = Vector2.new(pos.X, pos.Y)
+                                    line.Visible = true
+                                else
+                                    line.Visible = false
+                                end
+                            else
+                                line.Visible = false
+                            end
+                        end),
+                    }
+                end
+                for _, p in pairs(Players:GetPlayers()) do addTracer(p) end
+                ESPState.tracers._sys = {
+                    Players.PlayerAdded:Connect(addTracer),
+                    Players.PlayerRemoving:Connect(removeTracer),
+                }
+            end)
+        else
+            if ESPState.tracers._sys then
+                for _, c in pairs(ESPState.tracers._sys) do c:Disconnect() end
+                ESPState.tracers._sys = nil
+            end
+            for _, p in pairs(Players:GetPlayers()) do removeTracer(p) end
+        end
+    end,
+})
+
+Misc:CreateSection("Stability")
+
+Misc:CreateButton({
+    Name = "Enable Anti-Lag",
+    Icon = "zap",
+    Callback = function()
+        pcall(function()
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v:IsA("BasePart") or v:IsA("MeshPart") then
+                    v.Material    = Enum.Material.SmoothPlastic
+                    v.Reflectance = 0
+                elseif v:IsA("Decal") or v:IsA("Texture") then
+                    v:Destroy()
+                elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
+                    v.Enabled = false
+                end
+            end
+            Lighting.GlobalShadows = false
+        end)
+    end,
+})
+
+Misc:CreateButton({
+    Name = "Enable Anti-Crash",
+    Icon = "shield",
+    Callback = function()
+        pcall(function()
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+            Debris:SetMaxItems(5)
+        end)
+    end,
+})
+
+Misc:CreateSection("Codes")
+
+Misc:CreateButton({
+    Name = "Auto Redeem All Codes",
+    Icon = "ticket",
+    Callback = function()
+        local codes = {"mightygems2500","epicmuscle20","junglegym500","ultimate250","SkyAgility50","SpaceGems50","Speedy50","SuperMuscle100","SuperPunch100","MegaLift50","MillionWarriors","MuscleStorm50","Launch250","GalaxyCrystal50","FrostGems10","EpicReward500","MLREVIVED","INDUSTRIALGYM500"}
+        local remote = rEvents and rEvents:FindFirstChild("codeRemote")
+        if not remote then return end
+        task.spawn(function()
+            for _, code in ipairs(codes) do
+                local clean = code:gsub("%s+", "")
+                pcall(function() remote:InvokeServer(clean) end)
+                if clean:find("INDUSTRIAL") then
+                    pcall(function() task.wait(0.1); remote:InvokeServer(clean:lower()) end)
+                end
+                task.wait(0.2)
+            end
+        end)
+    end,
+})
+
+local Settings = Window:CreateTab({ Name = "Settings", Desc = "Keybind, configs, unload", Icon = "settings" })
+
+Settings:CreateKeybind({
+    Name = "Toggle UI",
+    CurrentKeybind = "RightControl",
+    Flag = "ToggleUIKey",
+    OnChanged = function(key)
+        Window:SetKeybind(key)
+    end,
+})
+
+Settings:CreateConfigManager({ Name = "Configs" })
+
+Settings:CreateButton({
+    Name = "Copy Discord Link",
+    Icon = "copy",
+    Callback = copyDiscord,
+})
+
+Settings:CreateButton({
+    Name = "Unload",
+    Icon = "power",
+    Callback = function()
+        Airflow:Confirm({
+            Title = "Unload?",
+            ConfirmText = "Unload",
+            Callback = function()
+                State.autoRep          = false
+                State.autoFastRep      = false
+                State.autoFastRock     = false
+                State.autoReb          = false
+                State.fastRebirth      = false
+                State.fastRepRare      = false
+                State.fastRepCommon    = false
+                State.autoBuyPet       = false
+                State.autoEvolve       = false
+                State.autoEatBoosts    = false
+                State.autoSpinWheel    = false
+                State.autoTpMuscleKing = false
+                State.autoSellAll      = false
+                State.autoFarmBoss     = false
+                State.autoFastBossHit  = false
+                State.espEnabled       = false
+                State.spectate         = false
+                Window:Destroy()
+            end,
+        })
+    end,
+})
+
+task.spawn(function()
+    while true do
+        local names = {}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= player then table.insert(names, p.Name) end
+        end
+        pcall(function() giftDropdown:Refresh(names, true) end)
+        task.wait(5)
+    end
+end)
+
+pcall(function()
+    player.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new(0, 0))
+    end)
+end)
+
+Window:LoadConfig()
+
+    end,
+})
