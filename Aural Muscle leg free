@@ -3,47 +3,6 @@ local _warn = warn
 _G.print = function(...) end
 _G.warn = function(...) end
 
-local Ophyn = loadstring(game:HttpGet("https://ophyn.space/interface"))()
-
-Ophyn.new({
-    Title = "Aural Freemium",
-    Description = "Key System",
-    Logo = "rbxassetid://105577669304412",
-    Theme = "Amethyst",
-    Folder = "AuralHubMisc",
-
-    getkey = true,
-    KeySystem = {
-        SaveKey = true,
-        API = {
-            {
-                Type = "panda",
-                ServiceId = "auralfreemium",
-            },
-        },
-    },
-
-    Intro = "true",
-    startintro_size = 80,
-    squareintro_time = 1.2,
-
-    Changelogocolor = true,
-    Changeiconscolor = true,
-    NotifStyle = "1",
-
-    discord_link = "discord.gg/auralhub",
-    website_link = "https://auralhub.xyz",
-
-    Discord = "true",
-    Website = "true",
-
-   SupportedGames = {
-    [6229116934] = true,
-    [3623096087] = true,
-},
-
-    Callback = function(key)
-
 local Airflow = loadstring(game:HttpGet("https://raw.githubusercontent.com/PookiePepelsss/Airflow-UI/refs/heads/main/Source.luau"))()
 
 local Players            = game:GetService("Players")
@@ -1312,6 +1271,3 @@ pcall(function()
 end)
 
 Window:LoadConfig()
-
-    end,
-})
