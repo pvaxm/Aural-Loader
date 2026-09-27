@@ -37,10 +37,10 @@ Ophyn.new({
     Discord = "true",
     Website = "true",
 
-   SupportedGames = {
-    [6229116934] = true,
-    [3623096087] = true,
-},
+    SupportedGames = {
+        [6229116934] = true,
+        [3623096087] = true,
+    },
 
     Callback = function(key)
 
