@@ -398,7 +398,7 @@ end
 
 Airflow:LoadFont({ Name = "ValleySans" })
 local Window = Airflow:CreateWindow({
-    Name = "Aural Free",
+    Name = "Aural Paid",
     Icon = "rbxassetid://105577669304412",
     LoadingSubtitle = "Muscle Legends",
     ToggleUIKeybind = "RightControl",
