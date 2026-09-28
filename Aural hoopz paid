@@ -321,7 +321,7 @@ local IconCenter
 
 getgenv().Settings = {
     Shooting = {
-        Mode = "Aural", HumanizeAim = false, HumanizeStrength = 0, MissChance = 0, AuralEnabled = false, FatalEnabled = false,
+        Mode = "Aural", AuralKeybind = Enum.KeyCode.X, HumanizeAim = false, HumanizeStrength = 0, MissChance = 0, AuralEnabled = false, FatalEnabled = false,
         ShotDelay = 0.32, ShotYAxis = 0, RandomizeShotDelay = false,
         ShotDelayMin = 0.25, ShotDelayMax = 0.38, GreenChance = 0,
         ThreesOnly = false, AimAssist = false, EBLHop = false
@@ -3922,6 +3922,71 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
+UserInputService.InputBegan:Connect(function(input, gpe)
+
+
+    if gpe then return end
+
+
+    local bind = s.Shooting.AuralKeybind
+
+
+    local targetKey = (type(bind) == "string") and Enum.KeyCode[bind] or bind
+
+
+    if input.KeyCode ~= targetKey then return end
+
+
+
+
+
+    if not s.Shooting.AuralEnabled then
+
+
+        -- turning OFF
+
+
+        s.Shooting.AuralEnabled = false
+
+
+        if s.Shooting.Mode == "Aural" then s.Shooting.Mode = "Fatal" end
+
+
+    else
+
+
+        -- turning ON
+
+
+        s.Shooting.AuralEnabled = true
+
+
+        s.Shooting.FatalEnabled = false
+
+
+        s.Shooting.Mode = "Aural"
+
+
+        disableFatal()
+
+
+    end
+
+
+
+
+
+    if uiToggles and uiToggles.aural then
+
+
+        pcall(function() uiToggles.aural:Set(s.Shooting.AuralEnabled) end)
+
+
+    end
+
+
+end)
+
 do
     function SpoofDevice()
         if not s.Misc.DeviceSpoofer then return end
@@ -4967,7 +5032,7 @@ do
     local offenseSub = offenseTab:SubTab({ Name = "Silent Aim", Icon = "crosshair" })
 
     local auralSection = offenseSub:Section({ Name = "Silent Aim (Aural)", Side = 1 })
-    auralSection:Toggle({
+    local auralsilent = auralSection:Toggle({
         Name = "Enable Aural Silent Aim",
         Default = s.Shooting.AuralEnabled,
         Flag = "aural_toggle",
@@ -4979,6 +5044,60 @@ do
                 disableFatal()
             end
         end
+    })
+
+    auralsilent:Keybind({
+
+
+
+
+
+
+
+        Name = "Aimbot Keybind",
+
+
+
+
+
+
+
+        Default = s.Shooting.AuralKeybind,
+
+
+
+
+
+
+
+        Flag = "auralsilent_keybind",
+
+
+
+
+
+
+
+        OnChanged = function(key)
+
+
+
+
+
+
+
+            if not key or key.EnumType ~= Enum.KeyCode then return end
+
+            s.Shooting.AuralKeybind = key.Name
+
+        end
+
+
+
+
+
+
+
     })
 
     auralSection:Toggle({
