@@ -1,4 +1,7 @@
---wait(5)
+if not game:IsLoaded() then game.Loaded:Wait() end
+warn("Loaded in " .. os.clock())
+task.wait(2)
+
 getgenv().aural = true
 
 local Janitor = (function()
@@ -302,18 +305,14 @@ local othsupported = {
 
 local old = hookfunction
 
-for i, v in pairs(othsupported) do
-    if identifyexecutor() == othsupported[i] then
-        hookfunction = oth.hook
-    else
-        hookfunction = old
-    end
-end
+local exec = identifyexecutor()
+if table.find(othsupported, exec) and oth then hookfunction = oth.hook end
 
 local Players = cloneref(game:GetService("Players"))
 local LocalPlayer = Players.LocalPlayer
 local remote = cloneref(game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("lukeEvent"))
 local TweenService = cloneref(game:GetService("TweenService"))
+local travelevent = cloneref(game:GetService("ReplicatedStorage").Remotes:FindFirstChild("sbEvent"))
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
@@ -369,7 +368,7 @@ getgenv().Settings = {
     Misc = {
         AntiTravel = false, AntiOOB = false, AntiModerator = false,
         Type = "Notify", DeviceSpoofer = false, Device = "PC", ServerPosition = false,
-        MobilePassMenu = false, AntiFall = false
+        MobilePassMenu = false, AntiFall = false, AntiTravel = false
     },
     Rep = {
         AutoCalculateRep = false,
@@ -453,6 +452,10 @@ Input = cloneref(game:GetService("VirtualInputManager"))
 local networkStats = cloneref(game:GetService("Stats"))
 SharedTableRegistry = cloneref(game:GetService("SharedTableRegistry"))
 local Hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+if not Hum then
+    local Char = LocalPlayer.CharacterAdded:Wait()
+    Hum = Char:WaitForChild("Humanoid")
+end
 local Rankings = require(ReplicatedStorage.Util.Rankings)
 local networkstats = networkStats:FindFirstChild("Network", false) or networkStats:WaitForChild("Network", 60)
 local serverstatsitem = networkstats:FindFirstChild("ServerStatsItem", false) or networkstats:WaitForChild("ServerStatsItem", 60)
@@ -666,7 +669,7 @@ do
         -- background ELO polling (works even with GUI hidden)
         if repCalcConn then return end
         repCalcConn = task.spawn(function()
-            while s.Rep.AutoCalculate do
+            while s.Rep.AutoCalculateRep do
                 task.wait(5)
                 local elo = LocalPlayer:GetAttribute("ELO") or 0
                 local rank, tier = Rankings.getRankFromELO(elo)
@@ -2083,6 +2086,16 @@ end
         end)
     end
 end
+
+local travelold
+
+travelold = hookfunction(travelevent.FireServer, function(self, arg)
+    if s.Misc.AntiTravel and arg == "Travel" then 
+        return nil 
+    end
+    return travelold(self, arg)
+end)
+
 
 local oobOriginals = {}
 
@@ -5028,7 +5041,8 @@ do
         Name = "Self Pass Keybind",
         Default = Enum.KeyCode.T,
         Flag = "selfpass_keybind",
-        Callback = function(key)
+        OnChanged = function(key)
+            if not key or key.EnumType ~= Enum.KeyCode then return end
             s.SelfPass.Keybind = key.Name
             if s.SelfPass.Enabled then
                 disableSelfPass()
@@ -5060,7 +5074,8 @@ do
         Name = "Auto Dime Keybind",
         Default = Enum.KeyCode.G,
         Flag = "autodime_keybind",
-        Callback = function(key)
+        OnChanged = function(key)
+            if not key or key.EnumType ~= Enum.KeyCode then return end
             s.AutoDime.Keybind = key.Name
             if s.AutoDime.Enabled then
                 disableAutoDime()
@@ -5145,7 +5160,7 @@ do
         end
     })
     uiToggles.magnet = magnetToggle
-    ballSec:Keybind({ Name = "Magnet keybind", Default = Enum.KeyCode.M, Flag = "ball_mag_keybind", Callback = function(key) s.Ball.MagnetKeybind = key.Name end })
+    ballSec:Keybind({ Name = "Magnet keybind", Default = Enum.KeyCode.M, Flag = "ball_mag_keybind", OnChanged = function(key) if not key or key.EnumType ~= Enum.KeyCode then return end s.Ball.MagnetKeybind = key.Name end })
     ballSec:Slider({
         Name = "Magnet size",
         Min = 1, Max = 50,
@@ -5183,7 +5198,8 @@ do
         Name = "Reach keybind",
         Default = Enum.KeyCode.N,
         Flag = "ball_reach_keybind",
-        Callback = function(key)
+        OnChanged = function(key)
+            if not key or key.EnumType ~= Enum.KeyCode then return end
             s.Ball.ReachKeybind = key.Name
         end
     })
@@ -5588,6 +5604,9 @@ otherVisSec:Slider({
     Default = 100,
 
 
+    Flag = "ui_backroundopacity",
+
+
     Suffix = "%",
 
 
@@ -5840,6 +5859,9 @@ specSec:Button({
         end
 
         if v then
+            local Hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if not Hum then return end
+
             fallconnection = Hum:GetPropertyChangedSignal("PlatformStand"):Connect(function()
                 if Hum.PlatformStand then
                     Hum.PlatformStand = false
@@ -5870,6 +5892,14 @@ specSec:Button({
         Callback = function(v)
             s.Misc.Device = v
             SpoofDevice()
+        end
+    })
+    miscSec:Toggle({
+        Name = "Anti Travel",
+        Default = s.Misc.AntiTravel,
+        Flag = "misc_devspoof",
+        Callback = function(v)
+            s.Misc.AntiTravel = v
         end
     })
     miscSec:Toggle({
