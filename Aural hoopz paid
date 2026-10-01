@@ -1,6 +1,6 @@
+local startTime = os.clock()
 if not game:IsLoaded() then game.Loaded:Wait() end
-warn("Loaded in " .. os.clock())
-task.wait(2)
+task.wait(1)
 
 getgenv().aural = true
 
@@ -293,20 +293,141 @@ local J = Janitor.new()
 getgenv().__aural_janitor = J
 J:AutoTrack()
 
+local trash = { "Xeno", "Solara", "Nexomia" }
+
+
+local name = identifyexecutor and identifyexecutor() or ""
+
+
 local zolar = loadstring(game:HttpGet("https://raw.githubusercontent.com/wimazawa-eng/ap/refs/heads/main/Testing.lua.txt"))()
 
-local othsupported = {
-    "Delta",
-    "Potassium",
-    "Volt",
-    "Wave",
-    "Synapse Z"
-}
+zolar.Version = "3.4"
 
-local old = hookfunction
+for _, exec in ipairs(trash) do
 
-local exec = identifyexecutor()
-if table.find(othsupported, exec) and oth then hookfunction = oth.hook end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    if string.find(name, exec, 1, true) then
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        zolar:Notification({
+
+
+
+
+
+
+
+                Name = "Features Limited",
+
+
+
+
+
+
+
+                Description = identifyexecutor() .. " May not support Aural Hub, Features are limited.",
+
+
+
+
+
+
+
+                Icon = "triangle-alert",
+
+
+
+               Color = Color3.fromRGB(255, 190, 60),
+
+
+
+                Duration = 10
+
+
+
+
+
+
+
+            })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+end
 
 local Players = cloneref(game:GetService("Players"))
 local LocalPlayer = Players.LocalPlayer
@@ -321,7 +442,7 @@ local IconCenter
 
 getgenv().Settings = {
     Shooting = {
-        Mode = "Aural", AuralKeybind = Enum.KeyCode.X, HumanizeAim = false, HumanizeStrength = 0, MissChance = 0, AuralEnabled = false, FatalEnabled = false,
+        Mode = "Aural", ArcMode = "High", MixedLowChance = 50, AuralKeybind = Enum.KeyCode.X, HumanizeAim = false, HumanizeStrength = 0, MissChance = 0, AuralEnabled = false, FatalEnabled = false,
         ShotDelay = 0.32, ShotYAxis = 0, RandomizeShotDelay = false,
         ShotDelayMin = 0.25, ShotDelayMax = 0.38, GreenChance = 0,
         ThreesOnly = false, AimAssist = false, EBLHop = false
@@ -1039,7 +1160,7 @@ mobileArcs = {
 }
 
 do
-    function getArcOffset(dist)
+    function getHighArcOffset(dist)
         local isMobile = UserInputService.TouchEnabled
         if isMobile then
             local d = math.floor(dist + 0.5)
@@ -1073,7 +1194,7 @@ do
         return 100
     end
 
-    function getArc(dist, power)
+    function getHighArc(dist, power)
         local isMobile = UserInputService.TouchEnabled
         if isMobile then
             local d = math.floor(dist + 0.5)
@@ -1103,6 +1224,131 @@ do
         if power ~= 85 then baseArc = baseArc * (85 / power) end
         return baseArc
     end
+end
+
+local LOW_ARC_MIN, LOW_ARC_MAX = 30, 73
+local LOW_ARC_ADJUST = -10
+
+
+
+
+local function getLowArcOffset(dist)
+
+
+    local d = math.clamp(dist, LOW_ARC_MIN, LOW_ARC_MAX)
+
+
+    local lo, hi = math.floor(d), math.ceil(d)
+
+
+    local a, b = mobileArcs[lo] or 37, mobileArcs[hi] or 37
+
+
+    local value = (lo == hi) and a or (a + (b - a) * (d - lo))
+
+
+    return value + LOW_ARC_ADJUST
+
+
+end
+
+
+
+
+
+arcState = { Choice = "High" }
+
+
+
+
+
+function rollArcChoice()
+
+
+    local sh = getgenv().Settings.Shooting
+
+
+    local mode = sh.ArcMode or "High"
+
+
+    if mode == "Low" then
+
+
+        arcState.Choice = "Low"
+
+
+    elseif mode == "Mixed" then
+
+
+        arcState.Choice = (math.random(1, 100) <= (sh.MixedLowChance or 50)) and "Low" or "High"
+
+
+    else
+
+
+        arcState.Choice = "High"
+
+
+    end
+
+
+end
+
+
+rollArcChoice()
+
+
+
+
+
+function resolveArcType(dist)
+
+
+    if arcState.Choice == "Low" and dist >= LOW_ARC_MIN and dist <= LOW_ARC_MAX then
+
+
+        return "Low"
+
+
+    end
+
+
+    return "High"
+
+
+end
+
+
+
+
+
+function getArcOffset(dist)
+
+
+    if resolveArcType(dist) == "Low" then return getLowArcOffset(dist) end
+
+
+    return getHighArcOffset(dist)
+
+
+end
+
+
+
+
+
+function getArc(dist, power)
+
+
+    -- the low table is only calibrated for power 85
+
+
+    if power == 85 and resolveArcType(dist) == "Low" then return getLowArcOffset(dist) end
+
+
+    return getHighArc(dist, power)
+
+
 end
 
 local object_values = {}
@@ -3472,9 +3718,18 @@ local targetPos = targetPos or goal.Position + Vector3.new(0, arc, 0)
             shotdelay = mn + math.random() * (mx - mn)
         end
 
-        task.wait(shotdelay)
+                task.wait(shotdelay)
+
+
         doClick()
+
+
         task.wait(0.1)
+
+
+        rollArcChoice()      -- new
+
+
         updateAuralTarget()
     end))
 
@@ -3989,12 +4244,27 @@ end)
 
 do
     function SpoofDevice()
-        if not s.Misc.DeviceSpoofer then return end
-        local device = s.Misc.Device
-        if device == "PC" then DeviceEvent:FireServer("Desktop")
-        elseif device == "Mobile" then DeviceEvent:FireServer("Mobile")
-        elseif device == "Gamepad" then DeviceEvent:FireServer("Gamepad") end
-    end
+
+
+    if not s.Misc.DeviceSpoofer then return end
+
+
+    local device = s.Misc.Device
+
+
+    if device == "PC" then DeviceEvent:FireServer("Desktop")
+
+
+    elseif device == "Mobile" then DeviceEvent:FireServer("Mobile")
+
+
+    elseif device == "Xbox" then DeviceEvent:FireServer("Console", "Xbox")
+
+
+    elseif device == "Playstation" then DeviceEvent:FireServer("Console", "Playstation") end
+
+
+end
 
       ----------------------------------------------------------------
     -- BALL TRAJECTORY
@@ -5046,6 +5316,7 @@ do
         end
     })
 
+
     auralsilent:Keybind({
 
 
@@ -6005,7 +6276,7 @@ specSec:Button({
     })
     miscSec:Dropdown({
         Name = "Device",
-        Items = { "PC", "Mobile", "Gamepad" },
+        Items = { "PC", "Mobile", "Playstation", "Xbox" },
         Default = s.Misc.Device,
         Flag = "misc_device",
         Callback = function(v)
@@ -6132,3 +6403,8 @@ J:Add(function()
     pcall(resetTrailOnAllBalls)
 end, nil, "manual_leftovers")
 end
+
+local deltaTime = os.clock() - startTime
+
+
+warn("Script section finished in " .. math.round(deltaTime) .. " seconds.")
