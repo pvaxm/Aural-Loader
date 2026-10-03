@@ -1,4 +1,7 @@
---wait(5)
+local startTime = os.clock()
+if not game:IsLoaded() then game.Loaded:Wait() end
+task.wait(1)
+
 getgenv().aural = true
 
 local Janitor = (function()
@@ -290,14 +293,145 @@ local J = Janitor.new()
 getgenv().__aural_janitor = J
 J:AutoTrack()
 
+local trash = { "Xeno", "Solara", "Nexomia" }
+
+
+local name = identifyexecutor and identifyexecutor() or ""
+
+
 local zolar = loadstring(game:HttpGet("https://raw.githubusercontent.com/wimazawa-eng/ap/refs/heads/main/Testing.lua.txt"))()
 
-zolar.Version = "3.6"
+for _, exec in ipairs(trash) do
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    if string.find(name, exec, 1, true) then
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        zolar:Notification({
+
+
+
+
+
+
+
+                Name = "Features Limited",
+
+
+
+
+
+
+
+                Description = identifyexecutor() .. " May not support Aural Hub, Features are limited.",
+
+
+
+
+
+
+
+                Icon = "triangle-alert",
+
+
+
+               Color = Color3.fromRGB(255, 190, 60),
+
+
+
+                Duration = 10
+
+
+
+
+
+
+
+            })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+end
 
 local Players = cloneref(game:GetService("Players"))
 local LocalPlayer = Players.LocalPlayer
 local remote = cloneref(game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("lukeEvent"))
 local TweenService = cloneref(game:GetService("TweenService"))
+local travelevent = cloneref(game:GetService("ReplicatedStorage").Remotes:FindFirstChild("sbEvent"))
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
@@ -306,12 +440,10 @@ local IconCenter
 
 getgenv().Settings = {
     Shooting = {
-        Mode = "Aural", AuralEnabled = false, FatalEnabled = false,
+        Mode = "Aural", AuralKeybind = Enum.KeyCode.X, HumanizeAim = false, HumanizeStrength = 0, MissChance = 0, AuralEnabled = false, FatalEnabled = false,
         ShotDelay = 0.32, ShotYAxis = 0, RandomizeShotDelay = false,
         ShotDelayMin = 0.25, ShotDelayMax = 0.38, GreenChance = 0,
-        ThreesOnly = false, AimAssist = false, EBLHop = false,
-        Humanize = false, AutoPower = false, MoveComp = 1.0, AutoMix = false, HumanizeAccuracy = 100, HumanizeErrorRadius = 0.03,
-        HumanizeMisses = false, HumanizeMissSeverity = 1.0, HumanizePressure = true, HumanizePredict = true
+        ThreesOnly = false, AimAssist = false, EBLHop = false
     },
     SelfPass = {
         Enabled = false, Keybind = "T", Power = 85, Distance = 50, Angle = 170
@@ -325,7 +457,7 @@ getgenv().Settings = {
     },
     Defending = {
         AutoGuard = false, AutoGuardButton = false, AutoGuardNearest = false, AutoGuardKeybind = "K",
-        AutoGuardRange = 33, GuardPrediction = 0.58, SpacingDistance = 3,
+        AutoGuardMode = "Prediction", AutoGuardRange = 33, GuardPrediction = 0.58, SpacingDistance = 3,
         ReactionTime = 0, JumpIfThrown = false
     },
     Automatics = {
@@ -345,7 +477,7 @@ getgenv().Settings = {
         HoopDistance = false,-- this was extreamly easy to make 
         HoopDistanceColor = "White",
         HoopDistanceTransparency = 0.6,
-        ArrayList = true,
+        ArrayList = false,
     },
     Ball = {
         BallMags = false, BallMagRange = 15, BallMagVisualizer = false, MagnetKeybind = "M",
@@ -355,7 +487,7 @@ getgenv().Settings = {
     Misc = {
         AntiTravel = false, AntiOOB = false, AntiModerator = false,
         Type = "Notify", DeviceSpoofer = false, Device = "PC", ServerPosition = false,
-        MobilePassMenu = false, AntiFall = false, HipHeight = false, hipheighttoggle = "F", hipheighttoggleup = "E", hipheighttoggledown = "Q", Swim = false, SwimToggleKey = "L",
+        MobilePassMenu = false, AntiFall = false, AntiTravel = false
     },
     Rep = {
         AutoCalculateRep = false,
@@ -374,18 +506,53 @@ getgenv().Settings = {
 }
 
 local rankelo = {
-    Rookie = 0,
-    Veteran = 100,
-    Elite = 300,
-    Pro = 650,
-    ["All-star"] = 1150,
-    Superstar = 1800,
-    Phenom = 2550,
-    Legend = 3350,
-    Mamba = 4100,
-    HoF = 10000,
-    ["G.O.A.T"] = 20000,
-    Aura = 30000
+    ["Rookie 1"] = 0,
+    ["Rookie 2"] = 25,
+    ["Rookie 3"] = 50,
+
+    ["Veteran 1"] = 100,
+    ["Veteran 2"] = 150,
+    ["Veteran 3"] = 200,
+
+    ["Elite 1"] = 300,
+    ["Elite 2"] = 400,
+    ["Elite 3"] = 500,
+
+    ["Pro 1"] = 650,
+    ["Pro 2"] = 800,
+    ["Pro 3"] = 950,
+
+    ["All-star 1"] = 1150,
+    ["All-star 2"] = 1350,
+    ["All-star 3"] = 1550,
+
+    ["Superstar 1"] = 1800,
+    ["Superstar 2"] = 2050,
+    ["Superstar 3"] = 2300,
+
+    ["Phenom 1"] = 2550,
+    ["Phenom 2"] = 2800,
+    ["Phenom 3"] = 3100,
+
+    ["Legend 1"] = 3350,
+    ["Legend 2"] = 3600,
+    ["Legend 3"] = 3850,
+
+    ["Mamba 1"] = 4100,
+    ["Mamba 2"] = 5050,
+    ["Mamba 3"] = 6050,
+
+    ["HoF 1"] = 10000,
+    ["HoF 2"] = 12500,
+    ["HoF 3"] = 15000,
+
+    ["G.O.A.T 1"] = 20000,
+    ["G.O.A.T 2"] = 22500,
+    ["G.O.A.T 3"] = 25000,
+
+    ["Aura 1"] = 30000,
+    ["Aura 2"] = 32500,
+    ["Aura 3"] = 35000
 }
 
 local s = getgenv().Settings
@@ -404,6 +571,10 @@ Input = cloneref(game:GetService("VirtualInputManager"))
 local networkStats = cloneref(game:GetService("Stats"))
 SharedTableRegistry = cloneref(game:GetService("SharedTableRegistry"))
 local Hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+if not Hum then
+    local Char = LocalPlayer.CharacterAdded:Wait()
+    Hum = Char:WaitForChild("Humanoid")
+end
 local Rankings = require(ReplicatedStorage.Util.Rankings)
 local networkstats = networkStats:FindFirstChild("Network", false) or networkStats:WaitForChild("Network", 60)
 local serverstatsitem = networkstats:FindFirstChild("ServerStatsItem", false) or networkstats:WaitForChild("ServerStatsItem", 60)
@@ -422,234 +593,6 @@ do
         CursorIcon2.Visible = false
     end)
 end
-
-local TOGGLE_KEY = getgenv().Settings.Misc.hipheighttoggle
-local BASE_OFFSET = -3.1
-local UP_OFFSET = 1.5
-local DOWN_OFFSET = -0.5
-local PLATFORM_SIZE = Vector3.new(2, 0.2, 1.5)
-
-if getgenv then
-	local env = getgenv()
-	if env.__FloatCleanup then pcall(env.__FloatCleanup) end
-end
-
-local floating = false
-local platform = nil
-local connections = {}
-local MAX_HEIGHT = 50
-
-local function getRoot(character)
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	return humanoid and humanoid.RootPart
-end
-
-local function stopFloat()
-	for _, conn in ipairs(connections) do
-		pcall(function() conn:Disconnect() end)
-	end
-	table.clear(connections)
-
-	if platform then
-		pcall(function() platform:Destroy() end)
-		platform = nil
-	end
-
-	floating = false
-end
-
-local function startFloat()
-	if floating then stopFloat() end
-
-	local character = LocalPlayer.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not (character and humanoid and getRoot(character)) then return end
-
-	floating = true
-
-	platform = Instance.new("Part")
-	platform.Name = tostring(math.random(1e6, 9e6))
-	platform.Transparency = 1
-	platform.Size = PLATFORM_SIZE
-	platform.Anchored = true
-	platform.Parent = character
-
-	-- Stop if you die or the platform is removed
-	table.insert(connections, humanoid.Died:Connect(stopFloat))
-	table.insert(connections, platform.AncestryChanged:Connect(function(_, parent)
-		if not parent then stopFloat() end
-	end))
-
-	-- Follow the player every frame
-	table.insert(connections, RunService.Heartbeat:Connect(function()
-    local root = getRoot(character)
-    if not (platform and root and character.Parent) then
-        return stopFloat()
-    end
-
-    local offset = BASE_OFFSET
-    if not UserInputService:GetFocusedTextBox() then
-        if UserInputService:IsKeyDown(getgenv().Settings.Misc.hipheighttoggleup) then offset += UP_OFFSET end
-        if UserInputService:IsKeyDown(getgenv().Settings.Misc.hipheighttoggledown) then offset += DOWN_OFFSET end
-    end
-
-    local newCFrame = root.CFrame * CFrame.new(0, offset, 0)
-
-    -- clamp: don't let the player rise above MAX_HEIGHT
-    if newCFrame.Y > MAX_HEIGHT then
-        newCFrame = CFrame.new(root.CFrame.X, MAX_HEIGHT, root.CFrame.Z) * root.CFrame.Rotation
-    end
-
-    platform.CFrame = newCFrame
-end))
-end
-
--- Toggle key
-local toggleConn = UserInputService.InputBegan:Connect(function(input, processed)
-	if processed then return end
-	if input.KeyCode and input.KeyCode.Name == getgenv().Settings.Misc.hipheighttoggle and getgenv().Settings.Misc.HipHeight then
-		if floating then stopFloat() else startFloat() end
-	end
-end)
-
--- Reset on respawn
-local respawnConn = LocalPlayer.CharacterAdded:Connect(stopFloat)
-
--- ============================================================
--- SWIM (HVH) — gated by s.Misc.Swim
--- ============================================================
-local swimState = {
-    swimming = false,
-    oldGravity = workspace.Gravity,
-    heartbeatConn = nil,
-    diedConn = nil,
-    oldAutoRotate = true,
-    swimconns = {}
-}
-
-local function addswimconnection(c) table.insert(swimState.swimconns, c); return c end
-
-local function getHumanoid()
-    local char = LocalPlayer.Character
-    return char and char:FindFirstChildWhichIsA("Humanoid")
-end
-
-local function setAllStates(humanoid, enabled)
-    for _, state in ipairs(Enum.HumanoidStateType:GetEnumItems()) do
-        if state ~= Enum.HumanoidStateType.None then
-            pcall(function() humanoid:SetStateEnabled(state, enabled) end)
-        end
-    end
-end
-
-local function stopSwim()
-    if not swimState.swimming then return end
-    swimState.swimming = false
-
-    workspace.Gravity = swimState.oldGravity
-
-    if swimState.heartbeatConn then swimState.heartbeatConn:Disconnect() swimState.heartbeatConn = nil end
-    if swimState.diedConn then swimState.diedConn:Disconnect() swimState.diedConn = nil end
-
-    local humanoid = getHumanoid()
-    if humanoid then
-        humanoid.AutoRotate = swimState.oldAutoRotate
-        setAllStates(humanoid, true)
-
-        local root = humanoid.RootPart
-        if root then
-            local up = root.CFrame.UpVector
-            local flat = Vector3.new(up.X, 0, up.Z)
-            if flat.Magnitude < 0.01 then flat = Vector3.new(0, 0, -1) end
-            root.CFrame = CFrame.lookAt(root.Position, root.Position + flat.Unit)
-        end
-
-        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-    end
-end
-
-local function startSwim()
-    if swimState.swimming then return end
-    local humanoid = getHumanoid()
-    if not humanoid then return end
-
-    swimState.swimming = true
-    swimState.oldGravity = workspace.Gravity
-    workspace.Gravity = 0
-
-    swimState.oldAutoRotate = humanoid.AutoRotate
-    humanoid.AutoRotate = false
-
-    setAllStates(humanoid, false)
-    humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
-
-    swimState.diedConn = humanoid.Died:Connect(stopSwim)
-
-    swimState.heartbeatConn = RunService.Heartbeat:Connect(function()
-        -- auto-stop if the setting gets turned off mid-swim
-        if not s.Misc.Swim then stopSwim() return end
-
-        local char = LocalPlayer.Character
-        local root = char and (humanoid.RootPart or char:FindFirstChild("HumanoidRootPart"))
-        local cam = workspace.CurrentCamera
-        if not root or not cam then return end
-
-        local look, right = cam.CFrame.LookVector, cam.CFrame.RightVector
-        local dir = Vector3.zero
-
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += look end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= look end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += right end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= right end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.yAxis end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then dir -= Vector3.yAxis end
-
-        if dir == Vector3.zero and humanoid.MoveDirection ~= Vector3.zero then
-            dir = humanoid.MoveDirection
-        end
-
-        local heading = Vector3.new(look.X, 0, look.Z)
-        if heading.Magnitude < 0.01 then
-            heading = Vector3.new(cam.CFrame.UpVector.X, 0, cam.CFrame.UpVector.Z)
-        end
-        if heading.Magnitude > 0.01 then
-            heading = heading.Unit
-            root.CFrame = CFrame.fromMatrix(
-                root.Position,
-                Vector3.yAxis:Cross(heading),
-                heading,
-                -Vector3.yAxis
-            )
-        end
-
-        if dir.Magnitude > 0 then
-            root.AssemblyLinearVelocity = dir.Unit * humanoid.WalkSpeed
-        else
-            root.AssemblyLinearVelocity = Vector3.zero
-        end
-    end)
-end
-
-addswimconnection(UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    -- compare by Name so string keybinds from the UI work
-    if input.KeyCode and input.KeyCode.Name == s.Misc.SwimToggleKey then
-        if not s.Misc.Swim then return end
-        if swimState.swimming then stopSwim() else startSwim() end
-    end
-end))
-
-addswimconnection(LocalPlayer.CharacterAdded:Connect(function()
-    if swimState.swimming then stopSwim() end
-end))
-
--- Allows re-executing the script without stacking listeners
-if getgenv then
-	getgenv().__FloatCleanup = function()
-		stopFloat()
-		toggleConn:Disconnect()
-		respawnConn:Disconnect()
-	end
 
 local indicator = Instance.new("Highlight")
 indicator.Name = "RangeIndicatorHighlight" --average dunno W
@@ -845,7 +788,7 @@ do
         -- background ELO polling (works even with GUI hidden)
         if repCalcConn then return end
         repCalcConn = task.spawn(function()
-            while s.Rep.AutoCalculate do
+            while s.Rep.AutoCalculateRep do
                 task.wait(5)
                 local elo = LocalPlayer:GetAttribute("ELO") or 0
                 local rank, tier = Rankings.getRankFromELO(elo)
@@ -1281,265 +1224,6 @@ do
     end
 end
 
--- ============================================================
--- GOLDEN EAGLE "LOWEST POWER" (Auto Power Preference = Lowest)
--- Picks the lowest power whose calibrated range covers the shot distance
--- (flattest arc), then solves the ballistic aim direction at that power.
--- ============================================================
-GE = {} -- global on purpose: avoids Lua's 200-locals limit in this big script
-do
-    local GRAVITY_MULTIPLIER = 0.99
-    local MAX_AURAL_POWER = 85
-    GE.MIN_FLAT_PITCH = 40 -- degrees; flatter solutions fall back to the high root
-
-    -- calibrated {min, max} distance per power (from GoldenEagle's arc table)
-    GE.ranges = {
-        [10]={5.51,6.2},   [15]={6.22,7.97},  [20]={4.41,11.97}, [25]={4.31,15.35},
-        [30]={4.24,15.33}, [35]={4.24,21.69}, [40]={4.02,24.46}, [45]={4.27,27.3},
-        [50]={3.96,34.15}, [55]={4.46,37.12}, [60]={4.17,44.27}, [65]={3.86,49.53},
-        [70]={3.91,53.38}, [75]={3.7,60.88},  [80]={3.9,66.56},  [85]={3.85,73.0},
-    }
-
-    function GE.lowestPower(dist)
-        local best
-        for power, r in pairs(GE.ranges) do
-            if power <= MAX_AURAL_POWER and dist >= r[1] and dist <= r[2] then
-                if not best or power < best then best = power end
-            end
-        end
-        return best
-    end
-
-    function GE.verticalBoost(power)
-        if power >= 85 then return 57.0
-        elseif power >= 75 then return 56.3
-        elseif power >= 70 then return 55.4 end
-        return 55.0
-    end
-
-    function GE.goalPosition(part)
-        if not part or not part.Parent then return nil end
-        local parent = part.Parent
-        local perfect = parent:FindFirstChild("Perfect")
-        if perfect and perfect:IsA("BasePart") then return perfect.Position end
-        local goal = parent:FindFirstChild("Goal") or parent:FindFirstChild("GoalHome") or parent:FindFirstChild("GoalAway")
-        if goal and goal:IsA("BasePart") then return goal.Position + Vector3.new(0, 0.5, 0) end
-        if part.Name == "Goal" or part.Name == "GoalHome" or part.Name == "GoalAway" then
-            return part.Position + Vector3.new(0, 0.5, 0)
-        end
-        if part.Name == "Rim" then return part.Position - Vector3.new(0, 1.76, 0) end
-        if part.Name == "FieldGoal" then return part.Position - Vector3.new(0, 1.28, 0) end
-        return part.Position
-    end
-
-    local function directionAtTime(target, power, rootPos, t, gravity, vel)
-        local accel = Vector3.new(0, -gravity * GRAVITY_MULTIPLIER, 0)
-        local boost = Vector3.new(0, GE.verticalBoost(power), 0)
-        -- vel = your horizontal velocity: the ball keeps drifting with you, so aim to cancel it
-        local offset = target - rootPos + Vector3.new(0, 2.25, 0) - boost * t - accel * 0.5 * t * t - (vel or Vector3.zero) * t
-        local denom = 0.5 + power * t
-        if denom <= 0.0001 or offset.Magnitude <= 0.0001 then return nil, nil end
-        return offset / denom, offset.Magnitude - denom
-    end
-
-    function GE.solve(target, power, rootPos, mode, vel)
-        local gravity = workspace.Gravity
-        local roots = {}
-        local bestAbs, bestT = math.huge, nil
-        local prevT = 0.05
-        local _, prevErr = directionAtTime(target, power, rootPos, prevT, gravity, vel)
-        local step = 0.03
-        local curT = prevT + step
-        while curT <= 1.85 do
-            local _, curErr = directionAtTime(target, power, rootPos, curT, gravity, vel)
-            if curErr and math.abs(curErr) < bestAbs then bestAbs = math.abs(curErr); bestT = curT end
-            if prevErr and curErr and ((prevErr <= 0 and curErr >= 0) or (prevErr >= 0 and curErr <= 0)) then
-                local lo, hi, loErr = curT - step, curT, prevErr
-                for _ = 1, 28 do
-                    local mid = (lo + hi) * 0.5
-                    local _, midErr = directionAtTime(target, power, rootPos, mid, gravity, vel)
-                    if not midErr then break end
-                    if (loErr <= 0 and midErr >= 0) or (loErr >= 0 and midErr <= 0) then hi = mid
-                    else lo = mid; loErr = midErr end
-                end
-                table.insert(roots, (lo + hi) * 0.5)
-            end
-            prevErr = curErr
-            curT += step
-        end
-        if #roots == 0 then
-    -- near-miss at the edge of this power's reach: accept the closest approach
-    if bestT and bestAbs < 2 then roots = { bestT } else return nil end
-end
-        local t = (mode == "Low") and roots[1] or roots[#roots]
-        local dir = directionAtTime(target, power, rootPos, t, gravity, vel)
-        if not dir then return nil end
-        -- A flat root can be nearly horizontal and the game may refuse to release
-        -- that shot. If the flat solution is shallower than MIN_FLAT_PITCH, use the
-        -- high root instead so a shot still goes.
-        local usedFlat = (mode == "Low")
-        if usedFlat and #roots > 1 and math.deg(math.asin(math.clamp(dir.Unit.Y, -1, 1))) < GE.MIN_FLAT_PITCH then
-            t = roots[#roots]
-            dir = directionAtTime(target, power, rootPos, t, gravity, vel) or dir
-            usedFlat = false
-        end
-        GE.lastPitch = math.deg(math.asin(math.clamp(dir.Unit.Y, -1, 1)))
-        GE.lastRoot = usedFlat and "flat" or "high"
-        GE.lastRootCount = #roots
-        return dir.Unit, t
-    end
-
-
-    -- ============================================================
-    -- HUMANIZE (ported from GoldenEagle): stable per-shot roll, tiny make-safe
-    -- scatter around the solved aim ray, optional deliberate misses,
-    -- defender-pressure texture and release-origin prediction.
-    -- ============================================================
-    GE.rng = Random.new()
-    GE.roll = nil
-    GE.motion = nil
-    GE.stats = { makes = 0, misses = 0 }
-
-    function GE.newShot()
-        GE.roll = {
-            Angle = GE.rng:NextNumber(0, 360), Hit = GE.rng:NextNumber(),
-            Spread = GE.rng:NextNumber(), Lift = GE.rng:NextNumber(),
-            Tallied = false,
-        }
-        return GE.roll
-    end
-
-    -- nearest enemy flat distance -> 0..1 pressure
-    function GE.pressure()
-        local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not root then return 0 end
-        local best = math.huge
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LocalPlayer and (not LocalPlayer.Team or not plr.Team or plr.Team ~= LocalPlayer.Team) then
-                local r = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
-                if r then
-                    local d = Vector3.new(r.Position.X - root.Position.X, 0, r.Position.Z - root.Position.Z).Magnitude
-                    if d < best then best = d end
-                end
-            end
-        end
-        return best < math.huge and math.clamp(1 - best / 10, 0, 1) or 0
-    end
-
-    -- predicts the small movement between now and the actual release
-    function GE.predictOrigin(pos, root)
-        if not (getgenv().Settings.Shooting.Humanize and getgenv().Settings.Shooting.HumanizePredict) then return pos end
-        local v = root.AssemblyLinearVelocity
-        v = Vector3.new(v.X, 0, v.Z)
-        GE.motion = (GE.motion or v):Lerp(v, 0.28)
-        local window = 0.035
-        local okp, ping = pcall(function() return dataping:GetValue() end)
-        if okp and type(ping) == "number" then window += math.clamp(ping / 2000, 0, 0.08) end
-        local lead = GE.motion * window
-        if lead.Magnitude > 1.5 then lead = lead.Unit * 1.5 end
-        return pos + lead
-    end
-
-    function GE.humanize(target, rim, commit)
-        local sh = getgenv().Settings.Shooting
-        if not sh.Humanize or typeof(target) ~= "Vector3" then return target end
-        local roll = GE.roll or GE.newShot()
-        local accuracy = math.clamp(tonumber(sh.HumanizeAccuracy) or 100, 0, 100)
-        local radius = math.clamp(tonumber(sh.HumanizeErrorRadius) or 0.03, 0, 3)
-        local severity = math.clamp(tonumber(sh.HumanizeMissSeverity) or 1, 1, 4)
-        local missing = sh.HumanizeMisses and roll.Hit > (accuracy / 100)
-        local spread
-        if missing then
-            local base = math.max(radius, 0.65)
-            spread = math.clamp(math.max(1.15, base * severity * (0.80 + roll.Spread * 0.45)), 1.15, 5.5)
-        else
-            local pressure = sh.HumanizePressure and GE.pressure() or 0
-            local makeRadius = math.min(radius + pressure * 0.015, 0.20)
-            spread = math.clamp(makeRadius * (0.04 + roll.Spread * 0.10) * (1.05 - accuracy / 250), 0, 0.05)
-        end
-        if commit and not roll.Tallied then
-            roll.Tallied = true
-            if missing then GE.stats.misses += 1 else GE.stats.makes += 1 end
-        end
-        local head = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head")
-        if spread <= 0 or not head or not rim then return target end
-        local tv, rv = target - head.Position, rim.Position - head.Position
-        local tFlat = Vector3.new(tv.X, 0, tv.Z).Magnitude
-        local rFlat = Vector3.new(rv.X, 0, rv.Z).Magnitude
-        if tFlat <= 0.01 or rFlat <= 0.01 then return target end
-        local scale = tFlat / rFlat -- studs at the rim -> offset on the far aim ray
-        local th = math.rad(roll.Angle)
-        return target + Vector3.new(math.cos(th), 0, math.sin(th)) * spread * scale
-            + Vector3.new(0, (roll.Lift - 0.5) * spread * 0.20 * scale, 0)
-    end
-
-    -- Returns (aimPosition, power) or nil. forcePower locks the power mid-shot.
-function GE.target(rim, distance, commit, forcePower)
-    local char = LocalPlayer.Character
-    local head = char and char:FindFirstChild("Head")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    local goalPos = GE.goalPosition(rim)
-    if not (head and root and goalPos) then return nil end
-
-    local d = math.floor(distance + 0.5) -- rounded distance for power selection
-    local candidates
-    if forcePower then
-        candidates = { forcePower }
-    elseif getgenv().Settings.Shooting.AutoPower then
-        candidates = {}
-        for power, r in pairs(GE.ranges) do
-            -- 1 stud hysteresis on the upper edge of the power we're already using
-            local hi = r[2] + ((GE.lastPower == power) and 1 or 0)
-            if d >= r[1] and d <= hi then table.insert(candidates, power) end
-        end
-        table.sort(candidates)
-    else
-        candidates = { 85 }
-    end
-
-    if #candidates == 0 then
-        if commit then print(string.format("[GE] dist %.1f | no power band covers this distance", distance)) end
-        return nil
-    end
-
-    local origin = GE.predictOrigin(root.Position, root)
-    local v = root.AssemblyLinearVelocity
-    local vel = Vector3.new(v.X, 0, v.Z) * (tonumber(getgenv().Settings.Shooting.MoveComp) or 0)
-
-        for _, power in ipairs(candidates) do
-        -- 85 under Auto Power: use the exact same arc/distances as normal (non-auto) aim
-        if power == 85 and candidates[1] == 85 and getgenv().Settings.Shooting.AutoPower then
-            local offset = getArcOffset(distance) + (getgenv().Settings.Shooting.ShotYAxis or 0)
-            GE.lastPower = 85
-            if commit then
-                print(string.format("[GE] dist %.1f | power 85 | legacy arc %.1f", distance, offset))
-            end
-            return velocify(rim.Position + Vector3.new(0, offset, 0), distance), 85
-        end
-
-        -- power validity is decided with ZERO velocity so jumping/moving can't bump it up a band
-                local base = GE.solve(goalPos, power, origin, "Low", Vector3.zero)
-        if base then
-            local dir = base
-            if vel.Magnitude > 0.01 then
-                -- small velocify-style nudge at rim distance instead of full velocity in the solver
-                local p = head.Position + base * distance
-                p += vel * (distance / 50 * 0.06)
-                dir = (p - head.Position).Unit
-            end
-            GE.lastPower = power
-            if commit then
-                print(string.format("[GE] dist %.1f | power %d | %s root, pitch %.0f deg",
-                    distance, power, GE.lastRoot or "?", GE.lastPitch or 0))
-            end
-            return GE.humanize(head.Position + dir * 1000, rim, commit), power
-        end
-    end
-    if commit then print(string.format("[GE] dist %.1f | no solution at any power", distance)) end
-    return nil
-end
-end
-
 local object_values = {}
 
 do
@@ -1588,6 +1272,22 @@ do
         end
         return tms
     end
+end
+
+local teammatesCache = setmetatable({}, { __mode = "k" })
+local lastTeammateRefresh = 0
+
+local function isTeammatePlayer(player)
+    -- reuse getTeammates(), refreshed at most every 0.5s
+    local now = os.clock()
+    if now - lastTeammateRefresh > 0.5 or not teammatesCache.list then
+        teammatesCache.list = getTeammates()
+        lastTeammateRefresh = now
+    end
+    for _, tm in ipairs(teammatesCache.list) do
+        if tm == player then return true end
+    end
+    return false
 end
 
 local predictionenabled = false
@@ -2025,47 +1725,62 @@ do
     end
 
     function getClosestDribbler()
-        local char = LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if not root then return nil end
-        local closestPlayer = nil
-        local closestDistance = math.huge
-        for _, part in workspace:GetPartBoundsInRadius(root.Position, s.Defending.AutoGuardRange) do
-            if part:IsA("BasePart") and part.Name == "Ball" and part.Parent:IsA("Folder") then
-                local holder = part.Parent.Parent
-                local holderRoot = holder and holder:FindFirstChild("HumanoidRootPart")
-                if holderRoot then
-                    local distance = (holderRoot.Position - root.Position).Magnitude
-                    if distance < closestDistance then
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local closestPlayer = nil
+    local closestDistance = math.huge
+    for _, part in workspace:GetPartBoundsInRadius(root.Position, s.Defending.AutoGuardRange) do
+        if part:IsA("BasePart") and part.Name == "Ball" and part.Parent:IsA("Folder") then
+            local holder = part.Parent.Parent
+            local holderRoot = holder and holder:FindFirstChild("HumanoidRootPart")
+            if holderRoot then
+                local distance = (holderRoot.Position - root.Position).Magnitude
+                if distance < closestDistance then
+                    local holderPlayer
+                    for _, player in Players:GetPlayers() do
+                        if player.Character == holder then holderPlayer = player; break end
+                    end
+                    -- TEAM CHECK: skip teammates
+                    if holderPlayer and not isTeammatePlayer(holderPlayer) then
                         closestDistance = distance
-                        for _, player in Players:GetPlayers() do
-                            if player.Character == holder then closestPlayer = player; break end
-                        end
+                        closestPlayer = holderPlayer
                     end
                 end
             end
         end
-        return closestPlayer
     end
+    return closestPlayer
+end
 
     function getClosestPlayer()
-        local char = LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if not root then return nil end
-        local closestPlayer = nil
-        local closestDistance = math.huge
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player == LocalPlayer then continue end
-            local c = player.Character
-            local hrp = c and c:FindFirstChild("HumanoidRootPart")
-            if not hrp then continue end
-            local dist = (hrp.Position - root.Position).Magnitude
-            if dist < s.Defending.AutoGuardRange and dist < closestDistance then
-                closestDistance = dist
-                closestPlayer = player
-            end
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local closestPlayer = nil
+    local closestDistance = math.huge
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        -- TEAM CHECK: skip teammates
+        if isTeammatePlayer(player) then continue end
+        local c = player.Character
+        local hrp = c and c:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+        local dist = (hrp.Position - root.Position).Magnitude
+        if dist < s.Defending.AutoGuardRange and dist < closestDistance then
+            closestDistance = dist
+            closestPlayer = player
         end
-        return closestPlayer
+    end
+    return closestPlayer
+end
+
+    local function getGuardMode()
+        local mode = tostring(s.Defending.AutoGuardMode or "Prediction")
+        local lowered = mode:lower()
+        if lowered == "legit" then return "legit" end
+        if lowered == "blatant" then return "blatant" end
+        return "prediction"
     end
 
     function getGuardPosition(target)
@@ -2080,6 +1795,8 @@ do
         local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         local myHum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
         if not targetHrp or not targetHum or not myHrp or not myHum then return nil end
+
+        local mode = getGuardMode()
         local ballPos = targetBall.Position
         local vel = targetHrp.AssemblyLinearVelocity
         local speed = targetHum.WalkSpeed
@@ -2088,9 +1805,19 @@ do
         local mySpeed = myHum.WalkSpeed
         local distance = (ballPos - myPos).Magnitude
         local timeToReach = distance / (mySpeed + 10)
-        local predictedMove = moveDir * speed * s.Defending.GuardPrediction + Vector3.new(vel.X, 0, vel.Z) * 0.5
+        local predictionScale = s.Defending.GuardPrediction or 0.58
+
+        if mode == "legit" then
+            predictionScale = predictionScale * 0.7
+            timeToReach = distance / (mySpeed + 12)
+        elseif mode == "blatant" then
+            predictionScale = predictionScale * 1.75
+            timeToReach = distance / (mySpeed + 18)
+        end
+
+        local predictedMove = moveDir * speed * predictionScale + Vector3.new(vel.X, 0, vel.Z) * 0.5
         local interceptPos = targetHrp.Position + predictedMove * timeToReach
-        local offsetDir = (moveDir.Magnitude > 0 and moveDir.Unit or Vector3.new(0, 0, 1)) * 2
+        local offsetDir = (moveDir.Magnitude > 0 and moveDir.Unit or Vector3.new(0, 0, 1)) * ((mode == "blatant") and 4 or 2)
         return Vector3.new(interceptPos.X + offsetDir.X, ballPos.Y, interceptPos.Z + offsetDir.Z)
     end
 
@@ -2105,9 +1832,10 @@ do
         local vel = Vector3.new(targetHrp.AssemblyLinearVelocity.X, 0, targetHrp.AssemblyLinearVelocity.Z)
         local dist = (targetHrp.Position - myHrp.Position).Magnitude
         local timeToReach = dist / (targetHum.WalkSpeed + 10)
-        local predicted = targetHrp.Position + (moveDir * targetHum.WalkSpeed * s.Defending.GuardPrediction + vel * 0.5) * timeToReach
+        local predictionScale = (getGuardMode() == "blatant") and (s.Defending.GuardPrediction * 1.5) or s.Defending.GuardPrediction
+        local predicted = targetHrp.Position + (moveDir * targetHum.WalkSpeed * predictionScale + vel * 0.5) * timeToReach
         local facing = (moveDir.Magnitude > 0) and moveDir.Unit or (targetHrp.CFrame.LookVector * Vector3.new(1, 0, 1)).Unit
-        local offset = facing * 2
+        local offset = facing * ((getGuardMode() == "blatant") and 4 or 2)
         return Vector3.new(predicted.X + offset.X, targetHrp.Position.Y, predicted.Z + offset.Z)
     end
 end
@@ -2477,6 +2205,16 @@ end
         end)
     end
 end
+
+local travelold
+
+travelold = hookfunction(travelevent.FireServer, function(self, arg)
+    if s.Misc.AntiTravel and arg == "Travel" then 
+        return nil 
+    end
+    return travelold(self, arg)
+end)
+
 
 local oobOriginals = {}
 
@@ -3679,13 +3417,26 @@ do
             settarget(nil)
             return
         end
-        if getgenv().Settings.Shooting.Humanize or getgenv().Settings.Shooting.AutoPower then
-    local aim = GE.target(goal, distance, false, GE.shooting and GE.lockedPower or nil)
-    settarget(aim)
-    return
-end
         local offset = getArcOffset(distance) + getgenv().Settings.Shooting.ShotYAxis
-        settarget(velocify(goal.Position + Vector3.new(0, offset, 0), distance))
+
+if s.Shooting.HumanizeAim then
+    local strength = s.Shooting.HumanizeStrength or 1.2
+    local missChance = (s.Shooting.MissChance or 12) / 100
+
+    if math.random() < missChance then
+        -- deliberate bad shot: long or short off the rim
+        if math.random() < 0.5 then
+            offset += strength * 3 + math.random() * strength * 2   -- too long
+        else
+            offset -= strength * 3 + math.random() * strength * 2   -- too short
+        end
+    else
+        -- normal shot: small variance, mostly still green
+        offset += (math.random() * 2 - 1) * strength
+    end
+end
+
+settarget(velocify(goal.Position + Vector3.new(0, offset, 0), distance))
     end
 end
 
@@ -3800,22 +3551,36 @@ end
 
         if not goal or distance < minDist or distance > AURAL_MAX_DIST then return end
 
-        local shotPower = 85
-if s.Shooting.Humanize or s.Shooting.AutoPower then
-    GE.newShot()
-    local aim, lowPower = GE.target(goal, distance, true)
-    if not aim then return end
-    shotPower = lowPower
-    GE.lockedPower = shotPower   -- keep aim solved for the same power we fire with
-    GE.shooting = true
-    settarget(aim)
-else
-    local arc = getArcOffset(distance) + s.Shooting.ShotYAxis
-    settarget(goal.Position + Vector3.new(0, arc, 0))
+        local arc = getArcOffset(distance) + s.Shooting.ShotYAxis
+if s.Shooting.HumanizeAim then
+    local strength = s.Shooting.HumanizeStrength or 1.2
+    local missChance = (s.Shooting.MissChance or 12) / 100
+
+    if math.random() < missChance then
+        -- deliberate bad shot: pick a miss direction
+        local mode = math.random(1, 3)
+        if mode == 1 then
+            arc += strength * 3 + math.random() * strength * 2   -- too long
+        elseif mode == 2 then
+            arc -= strength * 3 + math.random() * strength * 2   -- too short (front rim)
+        else
+            -- sideways miss: shift the whole target laterally
+            local side = (math.random() < 0.5) and -1 or 1
+            targetPos = goal.Position
+                + Vector3.new(0, getArcOffset(distance) + s.Shooting.ShotYAxis, 0)
+                + Camera.CFrame.RightVector * (side * (strength * 2 + math.random() * 2))
+        end
+    else
+        -- normal shot: small variance, still mostly green
+        arc += (math.random() * 2 - 1) * strength
+    end
 end
+local targetPos = targetPos or goal.Position + Vector3.new(0, arc, 0)
+
+        settarget(targetPos)
         task.wait(0.05)
 
-        setpower(shotPower) -- writes the Power attribute AND the shared PowerData table
+        LocalPlayer:SetAttribute("Power", 85)
 
         local shotdelay = s.Shooting.ShotDelay or 0.25
 
@@ -3829,8 +3594,6 @@ end
         task.wait(shotdelay)
         doClick()
         task.wait(0.1)
-        GE.shooting = false
-        GE.lockedPower = nil
         updateAuralTarget()
     end))
 
@@ -3854,158 +3617,6 @@ addconnection(workspace.DescendantAdded:Connect(function(object)
 end))
 
 addconnection(RunService.Heartbeat:Connect(updateAuralTarget))
-
-do
-    local MIX_IMAGE = ""      -- e.g. "rbxassetid://123456789"
-    local MIX_EMOJI = "🌀"
-    local mixGui, mixConn = nil, nil
-    local angle, changedSpeed, mixOn = 0, 0, false
-
-    local function wasdDown()
-        return UserInputService:IsKeyDown(Enum.KeyCode.W) or UserInputService:IsKeyDown(Enum.KeyCode.A)
-            or UserInputService:IsKeyDown(Enum.KeyCode.S) or UserInputService:IsKeyDown(Enum.KeyCode.D)
-    end
-
-    local function mixStep(dt)
-        if not s.Shooting.AutoMix or GE.shooting then return end
-        local char = LocalPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        local rootPart = hum and hum.RootPart
-        local controls = char and char:FindFirstChild("[Client] Controls")
-        local ball = char and char:FindFirstChild("Basketball")
-        if not (rootPart and controls and ball) then return end
-        if hum.MoveDirection.Magnitude == 0 then return end
-        pcall(function()
-            local anims = getupvalue(getsenv(controls).checkQueue, 2)
-            anims.moveShoot()
-            local x = hum.MoveDirection:Dot(workspace.CurrentCamera.CFrame.RightVector)
-            local dir = (x >= 0 and 1) or -1
-            changedSpeed += dt
-            if changedSpeed > 0.25 then anims.moveFG(); changedSpeed = 0 end
-            angle = (angle + 500 * dir * dt) % 360
-            rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, math.rad(angle), 0)
-        end)
-    end
-
-    local function stopMix()
-        if mixConn then mixConn:Disconnect(); mixConn = nil end
-        angle, changedSpeed, mixOn = 0, 0, false
-    end
-
-    function GE.destroyMixButton()
-        stopMix()
-        if mixGui then mixGui:Destroy(); mixGui = nil end
-    end
-
-    function GE.createMixButton()
-        if mixGui then return end
-        local gui = Instance.new("ScreenGui")
-        gui.Name = "AuralAutoMixGui"
-        gui.ResetOnSpawn = false
-        gui.IgnoreGuiInset = true
-        gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        gui.Parent = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
-        local holder = Instance.new("Frame")
-        holder.Size = UDim2.new(1, 0, 1, 0)
-        holder.BackgroundTransparency = 1
-        holder.Parent = gui
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, 52, 0, 52)
-        btn.AnchorPoint = Vector2.new(0.5, 0.5)
-        btn.Position = UDim2.new(0.5, 0, 0.5, 0)
-        btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-        btn.Text = ""
-        btn.Draggable = true
-        btn.Active = true
-        btn.BorderSizePixel = 0
-        btn.ZIndex = 2
-        btn.Parent = holder
-        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
-        local stroke = Instance.new("UIStroke")
-        stroke.Color = Color3.fromRGB(60, 60, 60)
-        stroke.Thickness = 1.5
-        stroke.Parent = btn
-
-        if MIX_IMAGE ~= "" then
-            local img = Instance.new("ImageLabel")
-            img.Size = UDim2.new(0.7, 0, 0.7, 0)
-            img.Position = UDim2.new(0.15, 0, 0.15, 0)
-            img.BackgroundTransparency = 1
-            img.Image = MIX_IMAGE
-            img.ZIndex = 3
-            img.Parent = btn
-        else
-            local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(1, 0, 1, 0)
-            label.BackgroundTransparency = 1
-            label.Text = MIX_EMOJI
-            label.TextScaled = true
-            label.Font = Enum.Font.GothamBold
-            label.TextColor3 = Color3.new(1, 1, 1)
-            label.ZIndex = 3
-            label.Parent = btn
-        end
-
-        btn.MouseButton1Down:Connect(function()
-            local holdStart = os.clock()
-            btn.MouseButton1Up:Once(function()
-                if os.clock() - holdStart > 0.25 then return end
-                mixOn = not mixOn
-                if not mixOn then
-                    TweenService:Create(btn, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(0, 0, 0) }):Play()
-                    stopMix()
-                    return
-                end
-                TweenService:Create(btn, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(80, 220, 120) }):Play()
-                if mixConn then mixConn:Disconnect() end
-                angle, changedSpeed = 0, 0
-                mixConn = RunService.Heartbeat:Connect(mixStep)
-            end)
-        end)
-        mixGui = gui
-    end
-
-    function GE.startPCMix()
-        if mixConn then return end
-        angle, changedSpeed = 0, 0
-        mixConn = RunService.Heartbeat:Connect(function(dt)
-            if UserInputService:GetFocusedTextBox() or not wasdDown() then
-                changedSpeed = 0
-                return
-            end
-            mixStep(dt)
-        end)
-    end
-
-    function GE.enableMix()
-        if isMobile then GE.createMixButton() else GE.startPCMix() end
-    end
-
-    function GE.disableMix()
-        GE.destroyMixButton()
-    end
-end
-
--- LIVE AUTO POWER (GoldenEagle-style): while you hold the ball, keep Power synced
--- to the lowest valid power for your current distance, so the power bar moves
--- up and down as you move around. Polls every 0.2s like GoldenEagle does.
-task.spawn(function()
-    while state.active do
-        task.wait(0.2)
-        local sh = s.Shooting
-        if sh.AuralEnabled and sh.AutoPower and not GE.shooting then
-            pcall(function()
-                local char = LocalPlayer.Character
-                local root = char and char:FindFirstChild("HumanoidRootPart")
-                if not (root and hasball(char)) then return end
-                local goal, distance = nearestgoal(root)
-                if not goal or distance < AURAL_MIN_DIST or distance > AURAL_MAX_DIST then return end
-                local _, best = GE.target(goal, distance, false)
-                if best and LocalPlayer:GetAttribute("Power") ~= best then setpower(best) end
-            end)
-        end
-    end
-end)
 addconnection(Players.PlayerAdded:Connect(function() task.defer(hookactors) end))
 
 env.__standalone_silent_aim_settings = {enabled = true, requireball = true}
@@ -4263,16 +3874,48 @@ do
             local char = LocalPlayer.Character
             local myHum = char and char:FindFirstChild("Humanoid")
             if not myHum or hasball(char) then return end
+
+            local mode = tostring(s.Defending.AutoGuardMode or "Prediction"):lower()
             local closestDribbler = getClosestDribbler()
             if closestDribbler then
-                local guardPos = getGuardPosition(closestDribbler)
+                local guardPos = nil
+                if mode == "legit" then
+                    guardPos = getNearestGuardPosition(closestDribbler)
+                elseif mode == "blatant" then
+                    guardPos = getGuardPosition(closestDribbler)
+                    if guardPos and (closestDribbler.Character and closestDribbler.Character:FindFirstChild("HumanoidRootPart")) then
+                        local targetRoot = closestDribbler.Character.HumanoidRootPart
+                        local myRoot = char:FindFirstChild("HumanoidRootPart")
+                        if myRoot and (targetRoot.Position - myRoot.Position).Magnitude < 18 then
+                            guardPos = targetRoot.Position + (targetRoot.CFrame.LookVector * Vector3.new(1, 0, 1)).Unit * 3
+                        end
+                    end
+                else
+                    guardPos = getGuardPosition(closestDribbler)
+                end
                 if guardPos then myHum:MoveTo(guardPos) end
                 return
             end
             if s.Defending.AutoGuardNearest then
                 local nearest = getClosestPlayer()
                 if nearest then
-                    local guardPos = getNearestGuardPosition(nearest)
+                    local guardPos = nil
+                    if mode == "legit" then
+                        guardPos = getNearestGuardPosition(nearest)
+                    elseif mode == "blatant" then
+                        guardPos = getNearestGuardPosition(nearest)
+                        if guardPos then
+                            local myRoot = char:FindFirstChild("HumanoidRootPart")
+                            if myRoot then
+                                local targetRoot = nearest.Character and nearest.Character:FindFirstChild("HumanoidRootPart")
+                                if targetRoot and (targetRoot.Position - myRoot.Position).Magnitude < 20 then
+                                    guardPos = targetRoot.Position + targetRoot.CFrame.LookVector * 4
+                                end
+                            end
+                        end
+                    else
+                        guardPos = getNearestGuardPosition(nearest)
+                    end
                     if guardPos then myHum:MoveTo(guardPos) end
                 end
             end
@@ -4282,6 +3925,7 @@ do
     function disableAutoGuard()
         if guardConnection then guardConnection:Disconnect(); guardConnection = nil end
     end
+
 
     function enableSpeedBoost()
         if speedConnection then speedConnection:Disconnect(); speedConnection = nil end
@@ -4395,6 +4039,71 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         end)
         return
     end
+end)
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+
+
+    if gpe then return end
+
+
+    local bind = s.Shooting.AuralKeybind
+
+
+    local targetKey = (type(bind) == "string") and Enum.KeyCode[bind] or bind
+
+
+    if input.KeyCode ~= targetKey then return end
+
+
+
+
+
+    if not s.Shooting.AuralEnabled then
+
+
+        -- turning OFF
+
+
+        s.Shooting.AuralEnabled = false
+
+
+        if s.Shooting.Mode == "Aural" then s.Shooting.Mode = "Fatal" end
+
+
+    else
+
+
+        -- turning ON
+
+
+        s.Shooting.AuralEnabled = true
+
+
+        s.Shooting.FatalEnabled = false
+
+
+        s.Shooting.Mode = "Aural"
+
+
+        disableFatal()
+
+
+    end
+
+
+
+
+
+    if uiToggles and uiToggles.aural then
+
+
+        pcall(function() uiToggles.aural:Set(s.Shooting.AuralEnabled) end)
+
+
+    end
+
+
 end)
 
 do
@@ -5003,6 +4712,7 @@ do
     -- Module registry: { displayName, isActiveFunc }
     local arrayModules = {
         { "Silent Aim",       function() return s.Shooting.AuralEnabled or s.Shooting.FatalEnabled end },
+        { "Humanize Aim",     function() return s.Shooting.HumanizeAim end },
         { "Aim Assist",       function() return s.Shooting.AimAssist end },
         { "EBL Hop",          function() return s.Shooting.EBLHop end },
         { "High Arc",         function() return s.Shooting.ThreesOnly end },
@@ -5022,6 +4732,7 @@ do
         { "Custom Name",      function() return s.Visuals.CustomName end },
         { "Custom Record",    function() return s.Visuals.CustomRecord end },
         { "Custom Title",     function() return s.Visuals.CustomTitle end },
+        { "Custom Rank",      function() return s.Visuals.CustomRank end},
         { "Goal Effect",      function() return s.Goal.Enabled end },
         { "Ball Changer",     function() return s.BallChanger.Enabled end },
         { "Trail Changer",    function() return s.TrailChanger.Enabled end },
@@ -5431,7 +5142,7 @@ end
 do
 
     local window = zolar:Window({
-        Name = "Aural Hub PAID",
+        Name = "Aural Hub v1.0",
         Icon = "105577669304412",
         Accent = Color3.fromRGB(179, 165, 255)
     })
@@ -5440,7 +5151,7 @@ do
     local offenseSub = offenseTab:SubTab({ Name = "Silent Aim", Icon = "crosshair" })
 
     local auralSection = offenseSub:Section({ Name = "Silent Aim (Aural)", Side = 1 })
-    auralSection:Toggle({
+    local auralsilent = auralSection:Toggle({
         Name = "Enable Aural Silent Aim",
         Default = s.Shooting.AuralEnabled,
         Flag = "aural_toggle",
@@ -5454,6 +5165,72 @@ do
         end
     })
 
+    auralsilent:Keybind({
+
+
+
+
+
+
+
+        Name = "Aimbot Keybind",
+
+
+
+
+
+
+
+        Default = s.Shooting.AuralKeybind,
+
+
+
+
+
+
+
+        Flag = "auralsilent_keybind",
+
+
+
+
+
+
+
+        OnChanged = function(key)
+
+
+
+
+
+
+
+            if not key or key.EnumType ~= Enum.KeyCode then return end
+
+            s.Shooting.AuralKeybind = key.Name
+
+        end
+
+
+
+
+
+
+
+    })
+
+    auralSection:Toggle({
+        Name = "Humanize Aim",
+        Default = s.Shooting.HumanizeAim,
+        Flag = "aural_humanizeaim",
+        Callback = function(value)
+            s.Shooting.HumanizeAim = value
+        end
+    })
+
+    auralSection:Slider({ Name = "Humanize strength", Min = 0.2, Max = 5, Default = 1.2, Decimals = 0.1, Flag = "aural_hstrength", Callback = function(v) s.Shooting.HumanizeStrength = v end })
+    auralSection:Slider({ Name = "Humanize miss %", Min = 0, Max = 80, Default = 0, Step = 1, Suffix = "%", Flag = "aural_hmiss", Callback = function(v) s.Shooting.MissChance = v end })
+
     auralSection:Toggle({
         Name = "EBL Hop",
         Default = s.Shooting.EBLHop,
@@ -5462,14 +5239,7 @@ do
             s.Shooting.EBLHop = value
         end
     })
-    auralSection:Toggle({ Name = "Auto power", Default = s.Shooting.AutoPower, Flag = "aural_autopower", Callback = function(v) s.Shooting.AutoPower = v end })
-    auralSection:Slider({ Name = "Move compensation", Min = 0, Max = 1.5, Default = s.Shooting.MoveComp, Decimals = 0.05, Flag = "aural_movecomp", Callback = function(v) s.Shooting.MoveComp = v end })
-    auralSection:Toggle({ Name = "Humanize aim", Default = s.Shooting.Humanize, Flag = "aural_humanize", Callback = function(v) s.Shooting.Humanize = v end })
-    auralSection:Slider({ Name = "Humanize accuracy", Min = 0, Max = 100, Default = s.Shooting.HumanizeAccuracy, Step = 1, Suffix = "%", Flag = "aural_humacc", Callback = function(v) s.Shooting.HumanizeAccuracy = v end })
-    auralSection:Toggle({ Name = "Humanize: allow purposely missing", Default = s.Shooting.HumanizeMisses, Flag = "aural_hummiss", Callback = function(v) s.Shooting.HumanizeMisses = v end })
-    auralSection:Toggle({ Name = "Humanize: defender pressure", Default = s.Shooting.HumanizePressure, Flag = "aural_humpress", Callback = function(v) s.Shooting.HumanizePressure = v end })
-    auralSection:Toggle({ Name = "Humanize: release origin", Default = s.Shooting.HumanizePredict, Flag = "aural_humpredict", Callback = function(v) s.Shooting.HumanizePredict = v end })
-    auralSection:Slider({ Name = "Shot Y axis offset", Min = -10, Max = 10, Default = s.Shooting.ShotYAxis, Decimals = 0.1, Flag = "aural_yaxis", Callback = function(v) s.Shooting.ShotYAxis = v end })
+    auralSection:Slider({ Name = "Shot Y axis offset", Min = -15, Max = 10, Default = s.Shooting.ShotYAxis, Decimals = 0.1, Flag = "aural_yaxis", Callback = function(v) s.Shooting.ShotYAxis = v end })
     auralSection:Slider({ Name = "Shot delay", Min = 0.15, Max = 0.42, Default = s.Shooting.ShotDelay, Decimals = 0.01, Suffix = "s", Flag = "aural_delay", Callback = function(v) s.Shooting.ShotDelay = v end })
     auralSection:Toggle({ Name = "Randomize shot delay", Default = s.Shooting.RandomizeShotDelay, Flag = "aural_rand", Callback = function(v) s.Shooting.RandomizeShotDelay = v end })
     auralSection:Slider({ Name = "Min delay", Min = 0, Max = 1, Default = s.Shooting.ShotDelayMin, Decimals = 0.05, Suffix = "s", Flag = "aural_mindelay", Callback = function(v) s.Shooting.ShotDelayMin = v end })
@@ -5509,7 +5279,8 @@ do
         Name = "Self Pass Keybind",
         Default = Enum.KeyCode.T,
         Flag = "selfpass_keybind",
-        Callback = function(key)
+        OnChanged = function(key)
+            if not key or key.EnumType ~= Enum.KeyCode then return end
             s.SelfPass.Keybind = key.Name
             if s.SelfPass.Enabled then
                 disableSelfPass()
@@ -5541,7 +5312,8 @@ do
         Name = "Auto Dime Keybind",
         Default = Enum.KeyCode.G,
         Flag = "autodime_keybind",
-        Callback = function(key)
+        OnChanged = function(key)
+            if not key or key.EnumType ~= Enum.KeyCode then return end
             s.AutoDime.Keybind = key.Name
             if s.AutoDime.Enabled then
                 disableAutoDime()
@@ -5573,6 +5345,15 @@ do
         Callback = function(value)
             s.Defending.AutoGuard = value
             if value then enableAutoGuard() else disableAutoGuard() end
+        end
+    })
+    guardSec:Dropdown({
+        Name = "Auto Guard Mode",
+        Items = { "Prediction", "Legit", "Blatant" },
+        Default = s.Defending.AutoGuardMode,
+        Flag = "defend_guardmode",
+        Callback = function(v)
+            s.Defending.AutoGuardMode = v
         end
     })
     guardSec:Toggle({
@@ -5617,7 +5398,7 @@ do
         end
     })
     uiToggles.magnet = magnetToggle
-    ballSec:Keybind({ Name = "Magnet keybind", Default = Enum.KeyCode.M, Flag = "ball_mag_keybind", Callback = function(key) s.Ball.MagnetKeybind = key.Name end })
+    ballSec:Keybind({ Name = "Magnet keybind", Default = Enum.KeyCode.M, Flag = "ball_mag_keybind", OnChanged = function(key) if not key or key.EnumType ~= Enum.KeyCode then return end s.Ball.MagnetKeybind = key.Name end })
     ballSec:Slider({
         Name = "Magnet size",
         Min = 1, Max = 50,
@@ -5655,7 +5436,8 @@ do
         Name = "Reach keybind",
         Default = Enum.KeyCode.N,
         Flag = "ball_reach_keybind",
-        Callback = function(key)
+        OnChanged = function(key)
+            if not key or key.EnumType ~= Enum.KeyCode then return end
             s.Ball.ReachKeybind = key.Name
         end
     })
@@ -6060,6 +5842,9 @@ otherVisSec:Slider({
     Default = 100,
 
 
+    Flag = "ui_backroundopacity",
+
+
     Suffix = "%",
 
 
@@ -6138,20 +5923,20 @@ otherVisSec:Slider({
 nameplateSec:Dropdown({
     Name = "Custom rank choice",
     Items = {
-        "Rookie",
-        "Veteran",
-        "Elite",
-        "Pro",
-        "All-star",
-        "Superstar",
-        "Phenom",
-        "Legend",
-        "Mamba",
-        "HoF",
-        "G.O.A.T",
-        "Aura"
-    },
-    Default = s.Visuals.CustomRankChoice or "Rookie",
+    "Rookie 1", "Rookie 2", "Rookie 3",
+    "Veteran 1", "Veteran 2", "Veteran 3",
+    "Elite 1", "Elite 2", "Elite 3",
+    "Pro 1", "Pro 2", "Pro 3",
+    "All-star 1", "All-star 2", "All-star 3",
+    "Superstar 1", "Superstar 2", "Superstar 3",
+    "Phenom 1", "Phenom 2", "Phenom 3",
+    "Legend 1", "Legend 2", "Legend 3",
+    "Mamba 1", "Mamba 2", "Mamba 3",
+    "HoF 1", "HoF 2", "HoF 3",
+    "G.O.A.T 1", "G.O.A.T 2", "G.O.A.T 3",
+    "Aura 1", "Aura 2", "Aura 3"
+},
+    Default = s.Visuals.CustomRankChoice or "Rookie 1",
     Flag = "vis_customrankchoice",
     Callback = function(v)
         s.Visuals.CustomRankChoice = v
@@ -6312,6 +6097,9 @@ specSec:Button({
         end
 
         if v then
+            local Hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if not Hum then return end
+
             fallconnection = Hum:GetPropertyChangedSignal("PlatformStand"):Connect(function()
                 if Hum.PlatformStand then
                     Hum.PlatformStand = false
@@ -6322,16 +6110,6 @@ specSec:Button({
                 Hum.PlatformStand = false
             end
         end
-    end
-})
-
-    miscSec:Toggle({
-    Name = "Auto Mix",
-    Default = s.Shooting.AutoMix,
-    Flag = "aural_automix",
-    Callback = function(v)
-        s.Shooting.AutoMix = v
-        if v then GE.enableMix() else GE.disableMix() end
     end
 })
     
@@ -6355,6 +6133,14 @@ specSec:Button({
         end
     })
     miscSec:Toggle({
+        Name = "Anti Travel",
+        Default = s.Misc.AntiTravel,
+        Flag = "misc_devspoof",
+        Callback = function(v)
+            s.Misc.AntiTravel = v
+        end
+    })
+    miscSec:Toggle({
         Name = "Mobile Pass Menu",
         Default = s.Misc.MobilePassMenu or false,
         Flag = "misc_mobilepass",
@@ -6363,59 +6149,6 @@ specSec:Button({
             setMobilePassMenu(v)
         end
     })
-    miscSec:Toggle({
-        Name = "HipHeight (HVH)",
-        Default = s.Misc.HipHeight,
-        Flag = "misc_hipheight",
-        Callback = function(v)
-            s.Misc.HipHeight = v
-        end
-    })
-    miscSec:Keybind({
-        Name = "Hipheight Keybind",
-        Default = s.Misc.hipheighttoggle,
-        Flag = "hipheight_keybind",
-        Callback = function(key)
-            s.Misc.hipheighttoggle = key.Name
-        end
-    })
-
-    miscSec:Keybind({
-        Name = "Hipheight Keybind Up",
-        Default = s.Misc.hipheighttoggleup,
-        Flag = "hipheight_keybindup",
-        Callback = function(key)
-            s.Misc.hipheighttoggleup = key.Name
-        end
-    })
-
-    miscSec:Keybind({
-        Name = "Hipheight Keybind Down",
-        Default = s.Misc.hipheighttoggledown,
-        Flag = "hipheight_keybinddown",
-        Callback = function(key)
-            s.Misc.hipheighttoggledown = key.Name
-        end
-    })
-
-    miscSec:Toggle({
-        Name = "Swim (HVH)",
-        Default = s.Misc.Swim,
-        Flag = "misc_Swim",
-        Callback = function(v)
-            s.Misc.Swim = v
-        end
-    })
-
-    miscSec:Keybind({
-        Name = "Swim Keybind",
-        Default = s.Misc.SwimToggleKey,
-        Flag = "swim_keybind",
-        Callback = function(key)
-            s.Misc.SwimToggleKey = key.Name
-        end
-    })
-
 
     travelingSec:Button({
         Name = "Teleport to 2s",
@@ -6516,7 +6249,10 @@ J:Add(function()
     pcall(stopHideTags)
     pcall(function() setPredictionEnabled(false) end)
     pcall(resetTrailOnAllBalls)
-    swimState.swimming = false
 end, nil, "manual_leftovers")
 end
-end
+
+local deltaTime = os.clock() - startTime
+
+
+warn("Script section finished in " .. math.round(deltaTime) .. " seconds.")
