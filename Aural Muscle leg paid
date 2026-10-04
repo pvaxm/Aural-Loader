@@ -29,8 +29,6 @@ local State = {
     autoReb           = false,
     anchored          = false,
     fastRebirth       = false,
-    fastRepRare       = false,
-    fastRepCommon     = false,
     autoBuyPet        = false,
     autoEvolve        = false,
     autoEatBoosts     = false,
@@ -129,23 +127,6 @@ local function unequipAll()
         end
     end
     task.wait(0.1)
-end
-
-local function equipPetsByRarity(rarity, name)
-    unequipAll()
-    task.wait(0.15)
-    local folder = player:FindFirstChild("petsFolder")
-    local cat = folder and folder:FindFirstChild(rarity)
-    if not cat then return end
-    local found, count = {}, 0
-    for _, pet in ipairs(cat:GetChildren()) do
-        if pet.Name == name then table.insert(found, pet) end
-    end
-    for i = 1, #found do
-        if count >= 9 then break end
-        pcall(function() rEvents.equipPetEvent:FireServer("equipPet", found[i]) end)
-        count += 1
-    end
 end
 
 local function equipFastPets()
@@ -301,7 +282,6 @@ local function doFastRebirth()
     local target = currentRebirthTarget()
     local reps = player.MembershipType == Enum.MembershipType.Premium and 6 or 12
     while State.fastRebirth and currentStrength() < target do
-        equipTool("Weight")
         for _ = 1, reps do
             pcall(function() muscleEvent:FireServer("rep") end)
         end
@@ -392,6 +372,79 @@ runWorkerWhile("autoSellAll", function()
     end
 end, 0.5)
 
+local fastRepWorker = {
+    active           = false,
+    initialSendRate  = 200,
+    maxSendRate      = 659,
+    sendRate         = 200,
+    sendTokens       = 0,
+    maxBurst         = 24,
+    controlInterval  = 0.5,
+    lastControlAt    = 0,
+    lastStrength     = 0,
+    lastDurability   = 0,
+    stalledIntervals = 0,
+    lastLoopAt       = 0,
+}
+
+local function startFastRepWorker()
+    if fastRepWorker.active then return end
+    fastRepWorker.active           = true
+    fastRepWorker.sendRate         = fastRepWorker.initialSendRate
+    fastRepWorker.sendTokens       = 0
+    fastRepWorker.stalledIntervals = 0
+    fastRepWorker.lastLoopAt       = os.clock()
+    fastRepWorker.lastControlAt    = tick()
+    local ls  = player:FindFirstChild("leaderstats")
+    local str = ls and ls:FindFirstChild("Strength")
+    local dur = player:FindFirstChild("Durability")
+    fastRepWorker.lastStrength   = str and str.Value or 0
+    fastRepWorker.lastDurability = dur and dur.Value or 0
+
+    task.spawn(function()
+        while State.autoFastRep do
+            local now     = os.clock()
+            local elapsed = math.min(0.1, now - fastRepWorker.lastLoopAt)
+            fastRepWorker.lastLoopAt = now
+
+            local tNow = tick()
+            if tNow - fastRepWorker.lastControlAt >= fastRepWorker.controlInterval then
+                local strVal  = str and str.Value or 0
+                local durVal  = dur and dur.Value or 0
+                local progress = strVal > fastRepWorker.lastStrength or durVal > fastRepWorker.lastDurability
+                if progress then
+                    fastRepWorker.stalledIntervals = 0
+                    fastRepWorker.sendRate = math.min(fastRepWorker.maxSendRate, fastRepWorker.sendRate * 1.12)
+                else
+                    fastRepWorker.stalledIntervals += 1
+                end
+                if fastRepWorker.stalledIntervals >= 2 then
+                    fastRepWorker.sendRate   = math.max(fastRepWorker.initialSendRate, fastRepWorker.sendRate * 0.65)
+                    fastRepWorker.sendTokens = 0
+                end
+                fastRepWorker.lastControlAt  = tNow
+                fastRepWorker.lastStrength   = strVal
+                fastRepWorker.lastDurability = durVal
+            end
+
+            fastRepWorker.sendTokens = math.min(
+                fastRepWorker.maxBurst,
+                fastRepWorker.sendTokens + fastRepWorker.sendRate * elapsed
+            )
+            local burstLimit = math.max(1, math.min(fastRepWorker.maxBurst, math.ceil(fastRepWorker.sendRate * 0.05)))
+            local sendCount  = math.min(math.floor(fastRepWorker.sendTokens), burstLimit)
+
+            for _ = 1, sendCount do
+                pcall(function() muscleEvent:FireServer("rep") end)
+            end
+            fastRepWorker.sendTokens -= sendCount
+
+            RunService.Heartbeat:Wait()
+        end
+        fastRepWorker.active = false
+    end)
+end
+
 local function copyDiscord()
     if setclipboard then setclipboard(DISCORD) end
 end
@@ -437,7 +490,6 @@ Farming:CreateToggle({
         if v then
             task.spawn(function()
                 while State.autoRep do
-                    equipTool("Weight")
                     pcall(function() muscleEvent:FireServer("rep") end)
                     task.wait(0.1)
                 end
@@ -447,23 +499,13 @@ Farming:CreateToggle({
 })
 
 Farming:CreateToggle({
-    Name = "Auto Fast Rep",
-    Desc = "15 rep fires per 0.07s",
+    Name = "Fast Rep",
+    Desc = "Adaptive token-bucket — ramps to 659 reps/s, backs off on stall",
     Default = false,
     Flag = "AutoFastRep",
     Callback = function(v)
         State.autoFastRep = v
-        if v then
-            task.spawn(function()
-                while State.autoFastRep do
-                    equipTool("Weight")
-                    for _ = 1, 15 do
-                        task.spawn(function() pcall(function() muscleEvent:FireServer("rep") end) end)
-                    end
-                    task.wait(0.07)
-                end
-            end)
-        end
+        if v then startFastRepWorker() end
     end,
 })
 
@@ -560,52 +602,6 @@ Farming:CreateToggle({
     Callback = function(v)
         State.fastRebirth = v
         if v then startFastRebirthWorker() end
-    end,
-})
-
-Farming:CreateSection("Golem Fast Rep")
-
-Farming:CreateToggle({
-    Name = "Fast Rep with Rare Golem",
-    Desc = "Equips Rare Boss Pet, 15 rep fires per 0.07s",
-    Default = false,
-    Flag = "FastRepRare",
-    Callback = function(v)
-        State.fastRepRare = v
-        if v then
-            equipPetsByRarity("Rare", "Rare Boss Pet")
-            task.spawn(function()
-                while State.fastRepRare do
-                    equipTool("Weight")
-                    for _ = 1, 15 do
-                        task.spawn(function() pcall(function() muscleEvent:FireServer("rep") end) end)
-                    end
-                    task.wait(0.07)
-                end
-            end)
-        end
-    end,
-})
-
-Farming:CreateToggle({
-    Name = "Fast Rep with Common Golem",
-    Desc = "Equips Common Boss Pet, 15 rep fires per 0.07s",
-    Default = false,
-    Flag = "FastRepCommon",
-    Callback = function(v)
-        State.fastRepCommon = v
-        if v then
-            equipPetsByRarity("Advanced", "Common Boss Pet")
-            task.spawn(function()
-                while State.fastRepCommon do
-                    equipTool("Weight")
-                    for _ = 1, 15 do
-                        task.spawn(function() pcall(function() muscleEvent:FireServer("rep") end) end)
-                    end
-                    task.wait(0.07)
-                end
-            end)
-        end
     end,
 })
 
@@ -781,22 +777,12 @@ local Boss = Window:CreateTab({ Name = "Boss", Desc = "Boss farming and chest op
 
 Boss:CreateToggle({
     Name = "Auto Farm Boss",
-    Desc = "Dodges attacks, punches boss, opens chest",
+    Desc = "Punches boss, opens chest on death",
     Default = false,
     Flag = "AutoFarmBoss",
     Callback = function(v)
         State.autoFarmBoss = v
         if v then
-            task.spawn(function()
-                while State.autoFarmBoss do
-                    local h = hum()
-                    if h and h.Health > 0 then
-                        equipTool("Weight")
-                        pcall(function() muscleEvent:FireServer("rep") end)
-                    end
-                    task.wait(0.1)
-                end
-            end)
             task.spawn(function()
                 while State.autoFarmBoss do
                     local char = player.Character
@@ -1055,7 +1041,6 @@ Misc:CreateToggle({
     Flag = "ESP",
     Callback = function(v)
         State.espEnabled = v
-
         if v then
             task.spawn(function()
                 while State.espEnabled do
@@ -1234,8 +1219,6 @@ Settings:CreateButton({
                 State.autoFastRock     = false
                 State.autoReb          = false
                 State.fastRebirth      = false
-                State.fastRepRare      = false
-                State.fastRepCommon    = false
                 State.autoBuyPet       = false
                 State.autoEvolve       = false
                 State.autoEatBoosts    = false
