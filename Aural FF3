@@ -81,9 +81,9 @@ register_module("core/services", function()
     -- // Services
 
     local ServiceProxy = setmetatable({}, {
-    	__index = LPH_NO_UPVALUES(LPH_NO_VIRTUALIZE(function(_, ServiceName)
+    	__index = function(_, ServiceName)
     		return cloneref(game:GetService(ServiceName))
-    	end))
+    	end
     })
 
     local Players = ServiceProxy.Players
@@ -427,14 +427,14 @@ register_module("utils/helpers", function()
     local Footballs = {}
 
     -- // Functions
-    local GetCatchPartNames = LPH_JIT(function()
+    local GetCatchPartNames = LPH_JIT_MAX(function()
         if game.PlaceId == PracticePlace then
             return { "CatchRight", "CatchLeft" }
         end
         return { "CatchR", "CatchL" }
     end)
 
-    local GetRandomCatchPart = LPH_JIT(function()
+    local GetRandomCatchPart = LPH_JIT_MAX(function()
         local Char = Refs.GetChar()
         if not Char then return nil end
 
@@ -477,7 +477,7 @@ register_module("utils/helpers", function()
     Services.Workspace.DescendantAdded:Connect(AddFootball)
     Services.Workspace.DescendantRemoving:Connect(RemoveFootball)
 
-    local GetClosestFootball = LPH_JIT(function()
+    local GetClosestFootball = LPH_JIT_MAX(function()
         local Hrp = Refs.GetHrp()
         if not Hrp then return nil end
 
@@ -499,7 +499,7 @@ register_module("utils/helpers", function()
         return ClosestFootball
     end)
 
-    local IsFootballHeld = LPH_JIT(function(Part)
+    local IsFootballHeld = LPH_JIT_MAX(function(Part)
         local Parent = Part and Part.Parent
         if not Parent then return false end
         if Parent:FindFirstChildOfClass("Humanoid") then return true end
@@ -510,7 +510,7 @@ register_module("utils/helpers", function()
         return false
     end)
 
-    local GetClosestLooseFootball = LPH_JIT(function()
+    local GetClosestLooseFootball = LPH_JIT_MAX(function()
         local Hrp = Refs.GetHrp()
         if not Hrp then return nil end
 
@@ -534,11 +534,11 @@ register_module("utils/helpers", function()
         return ClosestFootball
     end)
 
-    local IsBot = LPH_JIT(function(Name)
+    local IsBot = LPH_JIT_MAX(function(Name)
         return string.match(Name or "", "^bot %d+$") ~= nil
     end)
 
-    local GetBotLeadSide = LPH_JIT(function(BotName)
+    local GetBotLeadSide = LPH_JIT_MAX(function(BotName)
         local Num = tonumber(string.match(BotName or "", "^bot (%d+)$"))
         if not Num then return nil end
         if Num == 1 or Num == 2 then return "a" end
@@ -546,24 +546,24 @@ register_module("utils/helpers", function()
         return (Num % 2 == 1) and "a" or "b"
     end)
 
-    local IsVector3Valid = LPH_JIT(function(Pos)
+    local IsVector3Valid = LPH_JIT_MAX(function(Pos)
         return Pos.X == Pos.X and Pos.Y == Pos.Y and Pos.Z == Pos.Z
     end)
 
-    local GetScreenPosition = LPH_JIT(function(Obj)
+    local GetScreenPosition = LPH_JIT_MAX(function(Obj)
         local ScreenPoint, OnScreen = Services.Camera:WorldToViewportPoint(Obj.Position)
         return Vector2.new(ScreenPoint.X, ScreenPoint.Y), OnScreen
     end)
 
-    local GetFieldOrientation = LPH_JIT(function(Pos)
+    local GetFieldOrientation = LPH_JIT_MAX(function(Pos)
         return (Pos.Z > 0) and 1 or -1
     end)
 
-    local GetFieldOrientationX = LPH_JIT(function(Pos)
+    local GetFieldOrientationX = LPH_JIT_MAX(function(Pos)
         return (Pos.X > 0) and 1 or -1
     end)
 
-    local IsMoving = LPH_JIT(function(OtherPlayer)
+    local IsMoving = LPH_JIT_MAX(function(OtherPlayer)
         local Ok, Result = pcall(function()
             local Char = OtherPlayer.Character
             local Hum = Char:FindFirstChild("Humanoid")
@@ -572,16 +572,16 @@ register_module("utils/helpers", function()
         return Ok and Result or false
     end)
 
-    local IsBotMoving = LPH_JIT(function(Speed)
+    local IsBotMoving = LPH_JIT_MAX(function(Speed)
         return Speed.Magnitude > 0.5
     end)
 
-    local CharacterHasFootball = LPH_JIT(function()
+    local CharacterHasFootball = LPH_JIT_MAX(function()
         local Char = Refs.GetChar()
         return Char and Char:FindFirstChild("Football") ~= nil
     end)
 
-    local GetBallCarrier = LPH_JIT(function()
+    local GetBallCarrier = LPH_JIT_MAX(function()
         local LocalPlayer = Services.LocalPlayer
         local Flags = Services.ReplicatedStorage:FindFirstChild("Flags")
 
@@ -608,7 +608,7 @@ register_module("utils/helpers", function()
         return nil
     end)
 
-    local FireCatch = LPH_JIT(function()
+    local FireCatch = LPH_JIT_MAX(function()
         Services.Remote:FireServer("PlayerActions", "catch")
     end)
 
@@ -657,11 +657,11 @@ register_module("utils/math", function()
     }
 
     -- // Functions
-    local GetPower = LPH_JIT(function(Range, Gravity)
+    local GetPower = LPH_JIT_MAX(function(Range, Gravity)
         return math.sqrt(Range * Gravity)
     end)
 
-    local BeamProjectile = LPH_JIT(function(G, V0, X0, T1)
+    local BeamProjectile = LPH_JIT_MAX(function(G, V0, X0, T1)
         local P3 = 0.5 * G * T1 * T1 + V0 * T1 + X0
         local P1 = X0 + V0 * T1 / 3
         local P2 = P3 - (G * T1 * T1 + V0 * T1) / 3
@@ -703,7 +703,7 @@ register_module("utils/math", function()
         return Curve0, Curve1, Cf1, Cf2
     end)
 
-    local HorizontalRangeOfProjectile = LPH_JIT(function(Target)
+    local HorizontalRangeOfProjectile = LPH_JIT_MAX(function(Target)
         local TargetRootPart
         if Helpers.IsBot(Target.Name) then
             TargetRootPart = Target:FindFirstChild("Head")
@@ -721,7 +721,7 @@ register_module("utils/math", function()
         return Vector2.new(ProjectileRange.X, ProjectileRange.Z).Magnitude
     end)
 
-    local CalculateRouteOfPlayer = LPH_JIT(function(Player)
+    local CalculateRouteOfPlayer = LPH_JIT_MAX(function(Player)
         local RouteType = "Still"
         if not Helpers.IsBot(Player.Name) then
             local Ok, Result = pcall(function()
@@ -778,7 +778,7 @@ register_module("utils/math", function()
         return RouteType
     end)
 
-    local GetThrowType = LPH_JIT(function(Target)
+    local GetThrowType = LPH_JIT_MAX(function(Target)
         if not Target then return "Dime" end
 
         local Rp = HorizontalRangeOfProjectile(Target)
@@ -814,7 +814,7 @@ register_module("utils/math", function()
         return ThrowType
     end)
 
-    local CalculateHighSpeedLowAngle = LPH_JIT(function(Gravity, Speed)
+    local CalculateHighSpeedLowAngle = LPH_JIT_MAX(function(Gravity, Speed)
         local ClosestPlayer = Config.State.ClosestPlayer
         if not ClosestPlayer then return 0 end
         local Rp = HorizontalRangeOfProjectile(ClosestPlayer)
@@ -836,7 +836,7 @@ register_module("utils/math", function()
         return Eq
     end)
 
-    local CalculateLaunchAngleBullet = LPH_JIT(function(Gravity, InitialVelocity)
+    local CalculateLaunchAngleBullet = LPH_JIT_MAX(function(Gravity, InitialVelocity)
         local ClosestPlayer = Config.State.ClosestPlayer
         if not ClosestPlayer then return 0 end
         local MaxAngle = 45
@@ -854,7 +854,7 @@ register_module("utils/math", function()
         return AngleRad
     end)
 
-    local CalculateLaunchAngle = LPH_JIT(function(Gravity, InitialVelocity)
+    local CalculateLaunchAngle = LPH_JIT_MAX(function(Gravity, InitialVelocity)
         local ClosestPlayer = Config.State.ClosestPlayer
         if not ClosestPlayer then return 0 end
         local Rp = HorizontalRangeOfProjectile(ClosestPlayer)
@@ -863,17 +863,17 @@ register_module("utils/math", function()
         return 0.65 * math.asin(SinVal)
     end)
 
-    local GetTimeOfFlightProjectile = LPH_JIT(function(InitialVelocity, RequiredAngle, Gravity)
+    local GetTimeOfFlightProjectile = LPH_JIT_MAX(function(InitialVelocity, RequiredAngle, Gravity)
         return (2 * InitialVelocity * math.sin(RequiredAngle)) / Gravity
     end)
 
-    local KeepPositionInBounds = LPH_JIT(function(TargetPos, MinX, MinZ)
+    local KeepPositionInBounds = LPH_JIT_MAX(function(TargetPos, MinX, MinZ)
         local ClampedX = math.clamp(TargetPos.X, -MinX, MinX)
         local ClampedZ = math.clamp(TargetPos.Z, -MinZ, MinZ)
         return Vector3.new(ClampedX, TargetPos.Y, ClampedZ)
     end)
 
-    local BotEstimatedVel = LPH_JIT(function(Time, Bot)
+    local BotEstimatedVel = LPH_JIT_MAX(function(Time, Bot)
         local Ok, Result = pcall(function()
             local Hrp = Bot:FindFirstChild("HumanoidRootPart")
             if not Hrp then return Bot:FindFirstChild("Head") and Bot:FindFirstChild("Head").Position or Vector3.zero end
@@ -933,7 +933,7 @@ register_module("utils/math", function()
         return Ok and Result or Vector3.zero
     end)
 
-    local GetReceiverTargetPosition = LPH_JIT(function(TimeOfFlight, Receiver)
+    local GetReceiverTargetPosition = LPH_JIT_MAX(function(TimeOfFlight, Receiver)
         local Ok, Result = pcall(function()
             local Char = Receiver.Character
             if not Char then return Vector3.zero end
@@ -1032,7 +1032,7 @@ register_module("utils/math", function()
         return Ok and Result or Vector3.zero
     end)
 
-    local VelocityNeededToReachPosition = LPH_JIT(function(Angle, StartPos, EndPos, Gravity, Time)
+    local VelocityNeededToReachPosition = LPH_JIT_MAX(function(Angle, StartPos, EndPos, Gravity, Time)
         local Displacement = EndPos - StartPos
         local HorizDisp = Vector3.new(Displacement.X, 0, Displacement.Z)
         local HorizDist = HorizDisp.Magnitude
@@ -1051,7 +1051,7 @@ register_module("utils/math", function()
         end
     end)
 
-    local SolveProjectileForPower = LPH_JIT(function(StartPos, TargetPos, Power, Gravity, PreferHighArc)
+    local SolveProjectileForPower = LPH_JIT_MAX(function(StartPos, TargetPos, Power, Gravity, PreferHighArc)
         Gravity = Gravity or 28
         local Displacement = TargetPos - StartPos
         local Horizontal = Vector3.new(Displacement.X, 0, Displacement.Z)
@@ -1093,7 +1093,7 @@ register_module("utils/math", function()
         return Direction.Unit, Power
     end)
 
-    local GetFlightTimeFromVelocity = LPH_JIT(function(StartPos, TargetPos, Velocity, Gravity)
+    local GetFlightTimeFromVelocity = LPH_JIT_MAX(function(StartPos, TargetPos, Velocity, Gravity)
         Gravity = Gravity or Vector3.new(0, -28, 0)
         local Displacement = TargetPos - StartPos
         local HorizDisp = Vector3.new(Displacement.X, 0, Displacement.Z).Magnitude
@@ -1153,10 +1153,12 @@ register_module("core/ac_bypass", function()
     		return
     	end
 
-    	if getgenv().BypassLoaded then
+    	local _ge = getgenv()
+    	local _gk = "_x7q2m"
+    	if rawget(_ge, _gk) then
     		return
     	end
-    	getgenv().BypassLoaded = true
+    	rawset(_ge, _gk, true)
 
     	local DebugMode = Config.ViseHub.AcBypass.DebugMode
     	local ScriptContext = cloneref and cloneref(game:GetService("ScriptContext")) or game:GetService("ScriptContext")
@@ -1189,42 +1191,82 @@ register_module("core/ac_bypass", function()
     		{ 1650, 1749, 1853, 1741, 1761, 1856 },
     	}
 
+    	-- // Executor Compat
+
+    	local ExecutorName = "Unknown"
+    	pcall(function()
+    		local Name = identifyexecutor and identifyexecutor() or (getexecutorname and getexecutorname())
+    		if Name then ExecutorName = tostring(Name) end
+    	end)
+
+    	local function Wrap(Fn)
+    		if newcclosure then
+    			local Ok, Wrapped = pcall(newcclosure, Fn)
+    			if Ok and Wrapped then
+    				return Wrapped
+    			end
+    		end
+    		return Fn
+    	end
+
+    	local function SafeCheckcaller()
+    		if not checkcaller then return true end
+    		local Ok, Result = pcall(checkcaller)
+    		return Ok and Result
+    	end
+
+    	local function SafeGetupvalues(Fn)
+    		if not getupvalues then return nil end
+    		local Ok, Result = pcall(getupvalues, Fn)
+    		if Ok and typeof(Result) == "table" then return Result end
+    		return nil
+    	end
+
+    	local function SafeGetconstants(Fn)
+    		if not getconstants then return nil end
+    		local Ok, Result = pcall(getconstants, Fn)
+    		if Ok and typeof(Result) == "table" then return Result end
+    		return nil
+    	end
+
+    	if not getgc then return end
+
     	-- // Utilities
 
     	local function Log(...)
     		if DebugMode then
-    			print("[Aural-Hub Debug]:", ...)
+    			pcall(print, ...)
     		end
     	end
 
     	local function Fail(Code)
-    		LocalPlayer:Kick(string.format("[Aural-Hub]: Failed to initialize (code %d). Try rejoining — if this keeps happening, screenshot this and contact support.", Code))
-    		warn("[Aural-Hub]: Init failed — code " .. Code)
+    		LocalPlayer:Kick(string.format("Failed to initialize (code %d). Try rejoining.", Code))
+    		Log("Init failed — code", Code)
     		task.wait(1.5)
     	end
 
     	local function TamperKick(Code)
-    		LocalPlayer:Kick(string.format("[Aural-Hub]: Something went wrong (code %d). Try rejoining — if this keeps happening, screenshot this and contact support.", Code))
-    		warn("[Aural-Hub]: Tamper — code " .. Code)
+    		LocalPlayer:Kick(string.format("Something went wrong (code %d). Try rejoining.", Code))
+    		Log("Tamper — code", Code)
     		task.wait(1.5)
     	end
 
     	local function FromModule(Value)
-    		if typeof(Value) ~= "function" or not islclosure(Value) then
+    		if typeof(Value) ~= "function" or (islclosure and not islclosure(Value)) then
     			return false
     		end
 
-    		local Ok, Source = pcall(getrenv().debug.info, Value, "s")
+    		local Ok, Source = pcall(function() return getrenv().debug.info(Value, "s") end)
     		return Ok and Source ~= nil and Source:find("PlayerModule") ~= nil
     	end
 
     	local function IsShuffle(Value)
-    		if typeof(Value) ~= "function" or not islclosure(Value) then
+    		if typeof(Value) ~= "function" or (islclosure and not islclosure(Value)) then
     			return false
     		end
 
-    		local Ok, Constants = pcall(getconstants, Value)
-    		return Ok and Constants ~= nil and table.find(Constants, 90001) ~= nil
+    		local Constants = SafeGetconstants(Value)
+    		return Constants ~= nil and table.find(Constants, 90001) ~= nil
     	end
 
     	local function IsOtherRemote(Value)
@@ -1279,9 +1321,9 @@ register_module("core/ac_bypass", function()
     		task.wait()
     		HandshakeCount += 1
 
-    		local Odd = HandshakeCount % 2 == 1
-    		local SecondaryTable = Odd and AltTable or SwingTable
-    		local PrimaryTable = Odd and SwingTable or UpdateTable
+    		local Odd = (HandshakeCount % 2 == 1)
+    		local SecondaryTable = (Odd and AltTable or (SwingTable))
+    		local PrimaryTable = (Odd and SwingTable or (UpdateTable))
 
     		ShufflePrimary(LargeString, UpdateTable, 1645, 1765, 1623, LargeString, 1714, 1881, 1656)
 
@@ -1299,7 +1341,7 @@ register_module("core/ac_bypass", function()
 
     	-- // Shuffle functions
 
-    	LPH_NO_VIRTUALIZE(function()
+    	LPH_JIT_MAX(function()
     		for _, Value in next, getgc() do
     			if FromModule(Value) and IsShuffle(Value) and not table.find(Shuffles, Value) then
     				table.insert(Shuffles, Value)
@@ -1315,12 +1357,12 @@ register_module("core/ac_bypass", function()
 
     	-- // Handshake handler
 
-    	LPH_NO_VIRTUALIZE(function()
+    	LPH_JIT_MAX(function()
     		for _, Value in next, getgc() do
     			if not FromModule(Value) then continue end
 
-    			local Ok, Upvalues = pcall(getupvalues, Value)
-    			if not Ok or not Upvalues then continue end
+    			local Upvalues = SafeGetupvalues(Value)
+    			if not Upvalues then continue end
 
     			local HasRemote = false
     			local ShuffleCount = 0
@@ -1349,9 +1391,9 @@ register_module("core/ac_bypass", function()
     	-- // Content uri
 
     	do
-    		local Ok, Constants = pcall(getconstants, HandshakeFunction)
+    		local Constants = SafeGetconstants(HandshakeFunction)
 
-    		if Ok and Constants then
+    		if Constants then
     			for _, Value in next, Constants do
     				if typeof(Value) == "string" and #Value > 5 and string.byte(Value, 1) == 240 then
     					ContentUri = Value
@@ -1365,9 +1407,9 @@ register_module("core/ac_bypass", function()
 
     	-- // Handshake upvalues
 
-    	local HandshakeUpvalues = getupvalues(HandshakeFunction)
+    	local HandshakeUpvalues = SafeGetupvalues(HandshakeFunction) or {}
 
-    	LPH_NO_VIRTUALIZE(function()
+    	LPH_JIT_MAX(function()
     		for Index, Value in next, HandshakeUpvalues do
     			local Type = typeof(Value)
 
@@ -1410,7 +1452,7 @@ register_module("core/ac_bypass", function()
     	if #SmallTables < 2 then
     		Log("Small tables missing, scanning gc...")
 
-    		LPH_NO_VIRTUALIZE(function()
+    		LPH_JIT_MAX(function()
     			for _, Value in next, getgc(true) do
     				if typeof(Value) ~= "table" then continue end
     				if Grabbed(LargeTables, Value) or Grabbed(SmallTables, Value) then continue end
@@ -1429,7 +1471,7 @@ register_module("core/ac_bypass", function()
     	if #LargeTables < 1 then
     		Log("Large table missing, scanning gc...")
 
-    		LPH_NO_VIRTUALIZE(function()
+    		LPH_JIT_MAX(function()
     			for _, Value in next, getgc(true) do
     				if typeof(Value) ~= "table" then continue end
 
@@ -1469,10 +1511,13 @@ register_module("core/ac_bypass", function()
 
     	-- // Error output
 
-    	for _, Connection in next, getconnections(ScriptContext.Error) do
-    		Connection:Disable()
-    	end
+    	pcall(function()
+    		for _, Connection in next, getconnections(ScriptContext.Error) do
+    			Connection:Disable()
+    		end
+    	end)
 
+    	Log("Executor:", ExecutorName)
     	Log("Error loggers disabled.")
 
     	-- // Assign
@@ -1493,10 +1538,10 @@ register_module("core/ac_bypass", function()
 
     	-- // Caller spoof: shuffles check info(2, "sn"):sub(-3, -3) == "i" before doing anything
 
-    	Hooks.StringSub = hookfunction(getrenv().string.sub, newcclosure(function(...)
+    	Hooks.StringSub = hookfunction(getrenv().string.sub, Wrap(function(...)
     		local Arguments = { ... }
 
-    		if not checkcaller() then
+    		if not SafeCheckcaller() then
     			if Arguments[2] == -3 and Arguments[3] == -3 then
     				return "i"
     			end
@@ -1511,7 +1556,7 @@ register_module("core/ac_bypass", function()
 
     	-- // Primary shuffle hook: only handshake sequences pass, anything else is a penalty write
 
-    	Hooks.ShufflePrimary = hookfunction(ShufflePrimary, LPH_NO_UPVALUES(function(...)
+    	Hooks.ShufflePrimary = hookfunction(ShufflePrimary, Wrap(function(...)
     		local Arguments = { ... }
 
     		if rawlen(Arguments) >= 9 then
@@ -1548,19 +1593,19 @@ register_module("core/ac_bypass", function()
     	local Killed = 0
     	local DeadEvent = Instance.new("BindableEvent").Event
 
-    	LPH_NO_VIRTUALIZE(function()
+    	LPH_JIT_MAX(function()
     		for _, Value in next, getgc() do
     			if not FromModule(Value) then continue end
 
     			pcall(function()
-    				local Upvalues = getupvalues(Value)
+    				local Upvalues = SafeGetupvalues(Value)
     				if not Upvalues then return end
 
     				for UpIndex, Upvalue in next, Upvalues do
     					if typeof(Upvalue) ~= "RBXScriptSignal" then continue end
 
     					if Upvalue == RunService.Heartbeat or Upvalue == RunService.RenderStepped or Upvalue == RunService.Stepped then
-    						setupvalue(Value, UpIndex, DeadEvent)
+    						pcall(setupvalue, Value, UpIndex, DeadEvent)
     						Killed += 1
     					end
     				end
@@ -1575,12 +1620,12 @@ register_module("core/ac_bypass", function()
     	local EnvRawget = getrenv().rawget
     	local EnvRawset = getrenv().rawset
 
-    	LPH_NO_VIRTUALIZE(function()
+    	LPH_JIT_MAX(function()
     		for _, Value in next, getgc() do
     			if not FromModule(Value) or Value == HandshakeFunction then continue end
 
-    			local Ok, Upvalues = pcall(getupvalues, Value)
-    			if not Ok or not Upvalues then continue end
+    			local Upvalues = SafeGetupvalues(Value)
+    			if not Upvalues then continue end
 
     			local HasGet = false
     			local HasSet = false
@@ -1607,7 +1652,7 @@ register_module("core/ac_bypass", function()
 
     	-- // Handshake hook
 
-    	Hooks.Handshake = hookfunction(HandshakeFunction, LPH_NO_UPVALUES(function(Id, ...)
+    	Hooks.Handshake = hookfunction(HandshakeFunction, Wrap(function(Id, ...)
     		if not IsSetup then
     			return Hooks.Handshake(Id, ...)
     		end
@@ -1624,7 +1669,7 @@ register_module("core/ac_bypass", function()
     	-- // Update hook: keeps the update table in sync with the server
 
     	if UpdateFunction then
-    		Hooks.Update = hookfunction(UpdateFunction, LPH_NO_UPVALUES(function(Id, State, Values)
+    		Hooks.Update = hookfunction(UpdateFunction, Wrap(function(Id, State, Values)
     			if not IsSetup or Id ~= ContentUri then
     				return Hooks.Update(Id, State, Values)
     			end
@@ -1691,7 +1736,9 @@ register_module("core/ac_bypass", function()
     	end)
 
     	IsSetup = true
-    	print("[Aural-Hub]: Bypass loaded.")
+    	Log("Bypass loaded.")
+
+    	task.wait()
     end
 
     -- // Module
@@ -1745,6 +1792,14 @@ register_module("visuals/beam", function()
     local State = Config.State
     local CachedColor = nil
 
+    local function RandName()
+        local Out = ""
+        for _ = 1, math.random(6, 10) do
+            Out = Out .. string.char(math.random(97, 122))
+        end
+        return Out
+    end
+
     -- // Functions
     local function UpdateAimbotDrawing(FromPos, ToPos, Color)
         local Camera = Services.Camera
@@ -1797,21 +1852,21 @@ register_module("visuals/beam", function()
 
     local ThrownCachedColor = nil
 
-    local UpdateThrownBeam = LPH_JIT(function(Cf1, Cf2, Curve0, Curve1, Color)
+    local UpdateThrownBeam = LPH_JIT_MAX(function(Cf1, Cf2, Curve0, Curve1, Color)
         local A0 = State.ThrownAttachment0
         local A1 = State.ThrownAttachment1
         local Beam = State.ThrownBeam
 
         if not A0 or not A0.Parent then
             A0 = Instance.new("Attachment")
-            A0.Name = "ThrownA0"
+            A0.Name = RandName()
             A0.Parent = Services.Workspace.Terrain
             State.ThrownAttachment0 = A0
         end
 
         if not A1 or not A1.Parent then
             A1 = Instance.new("Attachment")
-            A1.Name = "ThrownA1"
+            A1.Name = RandName()
             A1.Parent = Services.Workspace.Terrain
             State.ThrownAttachment1 = A1
         end
@@ -1838,7 +1893,7 @@ register_module("visuals/beam", function()
             Beam.Segments = 64
             Beam.LightEmission = 0.8
             Beam.Brightness = 4
-            Beam.Name = "ThrownBeam"
+            Beam.Name = RandName()
             Beam.Parent = Services.Workspace.Terrain
             State.ThrownBeam = Beam
         end
@@ -1881,7 +1936,7 @@ register_module("visuals/esp", function()
     local EspDrawings = {}
 
     -- // Functions
-    local ClosestDefenderDist = LPH_JIT(function(Receiver)
+    local ClosestDefenderDist = LPH_JIT_MAX(function(Receiver)
         local ReceiverHrp
         if Helpers.IsBot(Receiver.Name) then
             ReceiverHrp = Receiver:FindFirstChild("HumanoidRootPart")
@@ -1912,11 +1967,11 @@ register_module("visuals/esp", function()
         return ClosestDist
     end)
 
-    local IsReceiverOpen = LPH_JIT(function(Receiver)
+    local IsReceiverOpen = LPH_JIT_MAX(function(Receiver)
         return ClosestDefenderDist(Receiver) > 15
     end)
 
-    local GetReceivers = LPH_JIT(function()
+    local GetReceivers = LPH_JIT_MAX(function()
         local Receivers = {}
         local LocalPlayer = Services.LocalPlayer
 
@@ -2091,8 +2146,16 @@ register_module("visuals/fov", function()
     local State = Config.State
     local HasDrawingApi = pcall(function() return Drawing end)
 
+    local function RandName()
+        local Out = ""
+        for _ = 1, math.random(6, 10) do
+            Out = Out .. string.char(math.random(97, 122))
+        end
+        return Out
+    end
+
     -- // Functions
-    local UpdateFovCircle = LPH_JIT(function()
+    local UpdateFovCircle = LPH_JIT_MAX(function()
         local Fov = ViseHub.QbAimbot.Fov
         local Show = ViseHub.QbAimbot.ShowFov and ViseHub.QbAimbot.Enabled
 
@@ -2118,13 +2181,13 @@ register_module("visuals/fov", function()
             if Show then
                 if not State.FovCircleFrame or not State.FovCircleFrame.Parent then
                     local Gui = Instance.new("ScreenGui")
-                    Gui.Name = "FOVCircleGui"
+                    Gui.Name = RandName()
                     Gui.ResetOnSpawn = false
                     Gui.IgnoreGuiInset = true
                     Gui.Parent = Services.LocalPlayer.PlayerGui
 
                     local Frame = Instance.new("Frame")
-                    Frame.Name = "FOVCircle"
+                    Frame.Name = RandName()
                     Frame.BackgroundTransparency = 1
                     Frame.BorderSizePixel = 0
                     Frame.Parent = Gui
@@ -2216,6 +2279,14 @@ register_module("visuals/hud_cards", function()
     		return math.clamp((VP.X - 20) / WindowW, 0.45, 1)
     	end
     	return 1
+    end
+
+    local function RandName()
+        local Out = ""
+        for _ = 1, math.random(6, 10) do
+            Out = Out .. string.char(math.random(97, 122))
+        end
+        return Out
     end
 
     -- // Utilities
@@ -2587,7 +2658,7 @@ register_module("visuals/hud_cards", function()
         if State.Cards then return end
 
         local Gui = Create("ScreenGui", {
-            Name = "Aural Hub",
+            Name = RandName(),
             ResetOnSpawn = false,
             ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
             DisplayOrder = 100,
@@ -2744,9 +2815,17 @@ register_module("features/catching/magnets", function()
     local State = Config.State
     local Refs = Services.Refs
 
+    local function RandName()
+        local Out = ""
+        for _ = 1, math.random(6, 10) do
+            Out = Out .. string.char(math.random(97, 122))
+        end
+        return Out
+    end
+
     -- // Functions
 
-    local IsHeldByPlayer = LPH_JIT(function(Football)
+    local IsHeldByPlayer = LPH_JIT_MAX(function(Football)
     	if not Football then return false end
     	local Char = Football:FindFirstAncestorOfClass("Model")
     	if not Char then return false end
@@ -2754,7 +2833,7 @@ register_module("features/catching/magnets", function()
     end)
 
     local function Run()
-    	Config.Threads.FootballMagnets = task.spawn(LPH_NO_VIRTUALIZE(function()
+    	Config.Threads.FootballMagnets = task.spawn(LPH_JIT_MAX(function()
     		while task.wait() do
     			if not ViseHub.Catching.Magnets or not Refs.GetChar() or not Refs.GetHrp() then continue end
     			local Football = Helpers.GetClosestLooseFootball()
@@ -2771,10 +2850,10 @@ register_module("features/catching/magnets", function()
     			if Dist <= Radius then
     				for _, Name in Helpers.GetCatchPartNames() do
     					local Part = Char:FindFirstChild(Name)
-    					if Part and Part:IsA("BasePart") then
-    						firetouchinterest(Part, Football, 0)
+    					if Part and Part:IsA("BasePart") and firetouchinterest then
+    						pcall(firetouchinterest, Part, Football, 0)
     						task.wait()
-    						firetouchinterest(Part, Football, 1)
+    						pcall(firetouchinterest, Part, Football, 1)
     					end
     				end
     				task.wait(ViseHub.Catching.CustomizableDelay)
@@ -2782,7 +2861,7 @@ register_module("features/catching/magnets", function()
     		end
     	end))
 
-    	Config.Threads.ShowMagHitbox = task.spawn(LPH_NO_VIRTUALIZE(function()
+    	Config.Threads.ShowMagHitbox = task.spawn(LPH_JIT_MAX(function()
     		while task.wait(0.1) do
     			local Football = Helpers.GetClosestLooseFootball()
     			if ViseHub.Catching.ShowMagHitbox and ViseHub.Catching.Magnets and Football then
@@ -2795,7 +2874,7 @@ register_module("features/catching/magnets", function()
     					P.Transparency = 0.7
     					P.Color = Color3.fromRGB(0, 170, 255)
     					P.Material = Enum.Material.ForceField
-    					P.Name = "MagnetHitbox"
+    					P.Name = RandName()
     					P.Parent = Services.Workspace
     					State.MagnetHitboxPart = P
     				end
@@ -2811,7 +2890,7 @@ register_module("features/catching/magnets", function()
     		end
     	end))
 
-    	Config.Threads.PullVector = task.spawn(LPH_NO_VIRTUALIZE(function()
+    	Config.Threads.PullVector = task.spawn(LPH_JIT_MAX(function()
     		while task.wait() do
     			local Hrp = Refs.GetHrp()
     			if not ViseHub.Catching.PullVector or not Hrp then continue end
@@ -2831,7 +2910,7 @@ register_module("features/catching/magnets", function()
     		end
     	end))
 
-    	Config.Threads.DiveVector = task.spawn(LPH_NO_VIRTUALIZE(function()
+    	Config.Threads.DiveVector = task.spawn(LPH_JIT_MAX(function()
     		while task.wait() do
     			local Hum = Refs.GetHumanoid()
     			local Hrp = Refs.GetHrp()
@@ -2892,7 +2971,7 @@ register_module("features/catching/enhancements", function()
     end
 
     local function Run()
-    	Config.Threads.AutoJump = task.spawn(LPH_NO_VIRTUALIZE(function()
+    	Config.Threads.AutoJump = task.spawn(LPH_JIT_MAX(function()
     		while task.wait(0.05) do
     			if not ViseHub.Catching.AutoJump then continue end
     			local Hrp = Refs.GetHrp()
@@ -2911,7 +2990,7 @@ register_module("features/catching/enhancements", function()
     		end
     	end))
 
-    	Config.Threads.Resizer = task.spawn(LPH_NO_VIRTUALIZE(function()
+    	Config.Threads.Resizer = task.spawn(LPH_JIT_MAX(function()
     		while task.wait(0.5) do
     			pcall(UpdateHandSize)
 
@@ -2926,7 +3005,7 @@ register_module("features/catching/enhancements", function()
     		end
     	end))
 
-    	Config.Threads.ResetOnCatch = task.spawn(LPH_NO_VIRTUALIZE(function()
+    	Config.Threads.ResetOnCatch = task.spawn(LPH_JIT_MAX(function()
     		while task.wait() do
     			local Hum = Refs.GetHumanoid()
     			if ViseHub.Physics.ResetOnCatch and Helpers.CharacterHasFootball() and Hum then
@@ -3026,7 +3105,7 @@ register_module("features/defense/tackle", function()
     		BlokBackup = nil
     	end
 
-    	Config.Threads.BlockExtender = task.spawn(LPH_NO_VIRTUALIZE(function()
+    	Config.Threads.BlockExtender = task.spawn(LPH_JIT_MAX(function()
     		while task.wait(0.1) do
     			local BlokPart = GetBlokPart()
 
@@ -3107,7 +3186,7 @@ register_module("features/defense/swat", function()
     		end)
     	end
 
-    	Config.Threads.AutoSwat = task.spawn(LPH_NO_VIRTUALIZE(function()
+    	Config.Threads.AutoSwat = task.spawn(LPH_JIT_MAX(function()
     		local LastSwatTick = 0
     		while task.wait() do
     			if ViseHub.Automatics.AutoSwat and (tick() - LastSwatTick > 0.25) then
@@ -3148,12 +3227,20 @@ register_module("features/movement/physics", function()
     local State = Config.State
     local Refs = Services.Refs
 
+    local function RandName()
+        local Out = ""
+        for _ = 1, math.random(6, 10) do
+            Out = Out .. string.char(math.random(97, 122))
+        end
+        return Out
+    end
+
     local IsDivingState = false
     local DiveBodyForce = nil
     local BoostPrevSpeed = nil
 
     -- // Functions
-    local GetCharacterMass = LPH_JIT(function(Char)
+    local GetCharacterMass = LPH_JIT_MAX(function(Char)
         local Mass = 0
         for _, Part in Char:GetChildren() do
             if Part:IsA("BasePart") then
@@ -3175,7 +3262,7 @@ register_module("features/movement/physics", function()
             end
         end
 
-        Services.UserInputService.InputBegan:Connect(LPH_NO_VIRTUALIZE(function(Input, Gp)
+        Services.UserInputService.InputBegan:Connect(LPH_JIT_MAX(function(Input, Gp)
             if Gp then return end
             if Input.KeyCode == Enum.KeyCode.W then State.FlyKeysHeld.w = true end
             if Input.KeyCode == Enum.KeyCode.A then State.FlyKeysHeld.a = true end
@@ -3185,7 +3272,7 @@ register_module("features/movement/physics", function()
             if Input.KeyCode == Enum.KeyCode.LeftShift then State.FlyKeysHeld.shift = true end
         end))
 
-        Services.UserInputService.InputEnded:Connect(LPH_NO_VIRTUALIZE(function(Input, Gp)
+        Services.UserInputService.InputEnded:Connect(LPH_JIT_MAX(function(Input, Gp)
             if Input.KeyCode == Enum.KeyCode.W then State.FlyKeysHeld.w = false end
             if Input.KeyCode == Enum.KeyCode.A then State.FlyKeysHeld.a = false end
             if Input.KeyCode == Enum.KeyCode.S then State.FlyKeysHeld.s = false end
@@ -3194,7 +3281,7 @@ register_module("features/movement/physics", function()
             if Input.KeyCode == Enum.KeyCode.LeftShift then State.FlyKeysHeld.shift = false end
         end))
 
-        Config.Threads.Fly = task.spawn(LPH_NO_VIRTUALIZE(function()
+        Config.Threads.Fly = task.spawn(LPH_JIT_MAX(function()
             while task.wait() do
                 local Hrp = Refs.GetHrp()
                 local Hum = Refs.GetHumanoid()
@@ -3253,7 +3340,7 @@ register_module("features/movement/physics", function()
             end
         end))
 
-        Config.Threads.CframeSpeed = task.spawn(LPH_NO_VIRTUALIZE(function()
+        Config.Threads.CframeSpeed = task.spawn(LPH_JIT_MAX(function()
             while task.wait() do
                 local Hum = Refs.GetHumanoid()
                 local Hrp = Refs.GetHrp()
@@ -3265,7 +3352,7 @@ register_module("features/movement/physics", function()
             end
         end))
 
-        Config.Threads.DiveAndBoostPhysics = task.spawn(LPH_NO_VIRTUALIZE(function()
+        Config.Threads.DiveAndBoostPhysics = task.spawn(LPH_JIT_MAX(function()
             while task.wait() do
                 local Hum = Refs.GetHumanoid()
                 local Hrp = Refs.GetHrp()
@@ -3287,7 +3374,7 @@ register_module("features/movement/physics", function()
                     if IsDiving then
                         if not DiveBodyForce or not DiveBodyForce.Parent then
                             DiveBodyForce = Instance.new("BodyForce")
-                            DiveBodyForce.Name = "DiveGravityBypasser"
+                            DiveBodyForce.Name = RandName()
                             DiveBodyForce.Parent = Hrp
                         end
 
@@ -3332,7 +3419,7 @@ register_module("features/movement/physics", function()
             end
         end))
 
-        Services.UserInputService.InputBegan:Connect(LPH_NO_VIRTUALIZE(function(Input, Gp)
+        Services.UserInputService.InputBegan:Connect(LPH_JIT_MAX(function(Input, Gp)
             if Gp or Input.KeyCode ~= Enum.KeyCode.F then return end
             if not ViseHub.Physics.QuickTp or ViseHub.Physics.QuickTpSpeed <= 0 then return end
 
@@ -3371,6 +3458,13 @@ register_module("features/movement/restrictions", function()
     local Services = require("core/services")
     local Config = require("core/config")
 
+    -- // Executor Compat
+    local function SafeCheckcaller()
+        if not checkcaller then return true end
+        local Ok, Result = pcall(checkcaller)
+        return Ok and Result
+    end
+
     -- // Variables
     local ViseHub = Config.ViseHub
     local State = Config.State
@@ -3378,7 +3472,7 @@ register_module("features/movement/restrictions", function()
 
     -- // Functions
     local function Run()
-        Config.Threads.JumpPower = task.spawn(LPH_NO_VIRTUALIZE(function()
+        Config.Threads.JumpPower = task.spawn(LPH_JIT_MAX(function()
             while task.wait(0.1) do
                 local Hum = Refs.GetHumanoid()
                 if ViseHub.Player.JumpPower and Hum then
@@ -3387,7 +3481,7 @@ register_module("features/movement/restrictions", function()
             end
         end))
 
-        Config.Threads.NoJumpCooldown = task.spawn(LPH_NO_VIRTUALIZE(function()
+        Config.Threads.NoJumpCooldown = task.spawn(LPH_JIT_MAX(function()
             while task.wait() do
                 local Hum = Refs.GetHumanoid()
                 if ViseHub.Physics.NoJumpCooldown and Hum then
@@ -3396,7 +3490,7 @@ register_module("features/movement/restrictions", function()
             end
         end))
 
-        Config.Threads.AntiJam = task.spawn(LPH_NO_VIRTUALIZE(function()
+        Config.Threads.AntiJam = task.spawn(LPH_JIT_MAX(function()
             while task.wait() do
                 local Char = Refs.GetChar()
                 local Hum = Refs.GetHumanoid()
@@ -3422,15 +3516,15 @@ register_module("features/movement/restrictions", function()
         end
 
         Services.LocalPlayer.CharacterAdded:Connect(function(NewChar)
-            NewChar.DescendantAdded:Connect(LPH_NO_VIRTUALIZE(CleanChild))
+            NewChar.DescendantAdded:Connect(LPH_JIT_MAX(CleanChild))
         end)
 
         local InitialChar = Refs.GetChar()
         if InitialChar then
-            InitialChar.DescendantAdded:Connect(LPH_NO_VIRTUALIZE(CleanChild))
+            InitialChar.DescendantAdded:Connect(LPH_JIT_MAX(CleanChild))
         end
 
-        Config.Threads.AngleEnhancer = task.spawn(LPH_NO_VIRTUALIZE(function()
+        Config.Threads.AngleEnhancer = task.spawn(LPH_JIT_MAX(function()
             local AngleTick = os.clock()
             local ShiftLockEnabled = false
             local LastEnabled = false
@@ -3504,8 +3598,8 @@ register_module("features/movement/restrictions", function()
         end
 
         local RawGet
-        RawGet = hookmetamethod(game, "__index", LPH_NO_UPVALUES(function(Self, Index)
-            if not checkcaller() and IsLocalHumanoid(Self) then
+        local function IndexHook(Self, Index)
+            if not SafeCheckcaller() and IsLocalHumanoid(Self) then
                 if Index == "WalkSpeed" then
                     return ShadowWalkSpeed
                 elseif Index == "JumpPower" then
@@ -3517,12 +3611,13 @@ register_module("features/movement/restrictions", function()
                 end
             end
             return RawGet(Self, Index)
-        end))
+        end
+        RawGet = hookmetamethod(game, "__index", IndexHook)
         Config.Hooks.IndexSpoof = RawGet
 
         local RawSet
-        RawSet = hookmetamethod(game, "__newindex", LPH_NO_UPVALUES(function(Self, Index, Value)
-            if not checkcaller() and IsLocalHumanoid(Self) then
+        local function NewIndexHook(Self, Index, Value)
+            if not SafeCheckcaller() and IsLocalHumanoid(Self) then
                 if Index == "WalkSpeed" then
                     local NumVal = tonumber(Value) or 16
                     if NumVal < 0 then
@@ -3562,13 +3657,14 @@ register_module("features/movement/restrictions", function()
                 end
             end
             return RawSet(Self, Index, Value)
-        end))
+        end
+        RawSet = hookmetamethod(game, "__newindex", NewIndexHook)
         Config.Hooks.NoMoveRestrictions = RawSet
 
         local RawNamecall
-        RawNamecall = hookmetamethod(game, "__namecall", LPH_NO_UPVALUES(function(Self, ...)
-            local Method = getnamecallmethod()
-            if (Method == "fireServer" or Method == "FireServer")
+        local function NamecallHook(Self, ...)
+            local Ok, Method = pcall(getnamecallmethod)
+            if Ok and (Method == "fireServer" or Method == "FireServer")
                and rawequal(Self, Services.Remote)
                and ViseHub.Physics.AntiDown then
                 local A1, A2 = ...
@@ -3577,7 +3673,8 @@ register_module("features/movement/restrictions", function()
                 end
             end
             return RawNamecall(Self, ...)
-        end))
+        end
+        RawNamecall = hookmetamethod(game, "__namecall", NamecallHook)
         Config.Hooks.AntiDown = RawNamecall
     end
 
@@ -3602,7 +3699,7 @@ register_module("features/automatics/auto_qb", function()
 
     -- // Functions
     local function Run()
-        Config.Threads.AutoQb = task.spawn(LPH_NO_VIRTUALIZE(function()
+        Config.Threads.AutoQb = task.spawn(LPH_JIT_MAX(function()
             while task.wait() do
                 local Hrp = Refs.GetHrp()
                 local Hum = Refs.GetHumanoid()
@@ -3720,7 +3817,7 @@ register_module("features/automatics/auto_guard", function()
     local Refs = Services.Refs
 
     -- // Functions
-    local GetClosestOpponent = LPH_JIT(function()
+    local GetClosestOpponent = LPH_JIT_MAX(function()
         local LocalPlayer = Services.LocalPlayer
         local Hrp = Refs.GetHrp()
         if not Hrp then return nil end
@@ -3744,7 +3841,7 @@ register_module("features/automatics/auto_guard", function()
     end)
 
     local function Run()
-        Config.Threads.AutoRushQb = task.spawn(LPH_NO_VIRTUALIZE(function()
+        Config.Threads.AutoRushQb = task.spawn(LPH_JIT_MAX(function()
             while task.wait() do
                 if not ViseHub.Automatics.AutoRush then continue end
                 local Hum = Refs.GetHumanoid()
@@ -3795,7 +3892,7 @@ register_module("features/automatics/auto_guard", function()
             end
         end))
 
-        Config.Threads.AutoCatch = task.spawn(LPH_NO_VIRTUALIZE(function()
+        Config.Threads.AutoCatch = task.spawn(LPH_JIT_MAX(function()
             local LastCatchTick = 0
             while task.wait() do
                 local Hrp = Refs.GetHrp()
@@ -3814,7 +3911,7 @@ register_module("features/automatics/auto_guard", function()
             end
         end))
 
-        Config.Threads.AutoGuard = task.spawn(LPH_NO_VIRTUALIZE(function()
+        Config.Threads.AutoGuard = task.spawn(LPH_JIT_MAX(function()
             local WasMoving = false
             while task.wait() do
                 if not ViseHub.Automatics.AutoGuard then
@@ -4261,7 +4358,7 @@ register_module("features/aimbot/aimbot", function()
 
     -- // Functions
 
-    local GetClosestPlayerToMouse = LPH_JIT(function()
+    local GetClosestPlayerToMouse = LPH_JIT_MAX(function()
     	if ViseHub.QbAimbot.LockedTarget then
     		local Locked = ViseHub.QbAimbot.LockedTarget
     		local Valid = false
@@ -4339,7 +4436,7 @@ register_module("features/aimbot/aimbot", function()
     	end
     end)
 
-    local ThrowFootball = LPH_JIT(function(_Football, StartPos, Direction, Power)
+    local ThrowFootball = LPH_JIT_MAX(function(_Football, StartPos, Direction, Power)
     	pcall(function()
     		local Character = Refs.GetChar()
     		if not Character then return end
@@ -4369,7 +4466,7 @@ register_module("features/aimbot/aimbot", function()
     	end)
     end)
 
-    local DoQbThrow = LPH_JIT(function(CachedSolution)
+    local DoQbThrow = LPH_JIT_MAX(function(CachedSolution)
     	if not ViseHub.QbAimbot.Enabled then return end
 
     	local Character = Refs.GetChar()
@@ -4493,7 +4590,7 @@ register_module("features/aimbot/aimbot", function()
     		end
     	end)
 
-    	Services.RunService.Heartbeat:Connect(LPH_NO_VIRTUALIZE(function()
+    	Services.RunService.Heartbeat:Connect(LPH_JIT_MAX(function()
     		pcall(FovVisuals.UpdateFovCircle)
     		pcall(EspReceiver.UpdateEsp)
 
@@ -4595,6 +4692,14 @@ register_module("ui/amethyst", function()
     local CoreGui = game:GetService("CoreGui")
 
     -- // Variables
+    local function RandName()
+        local Out = ""
+        for _ = 1, math.random(6, 10) do
+            Out = Out .. string.char(math.random(97, 122))
+        end
+        return Out
+    end
+
     local LocalPlayer = Players.LocalPlayer
 
     local Library = {
@@ -4964,7 +5069,7 @@ register_module("ui/amethyst", function()
     		task.spawn(function()
     			local Success, Error = pcall(Callback, unpack(Arguments, 1, Count))
     			if not Success then
-    				warn("[Amethyst] Callback error: " .. tostring(Error))
+    				-- silenced to avoid detection
     			end
     		end)
     	end
@@ -5186,7 +5291,7 @@ register_module("ui/amethyst", function()
     	end
 
     	local ScreenGui = Utilities.Create("ScreenGui", {
-    		Name = "AmethystUI",
+    		Name = RandName(),
     		ResetOnSpawn = false,
     		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
     		IgnoreGuiInset = true,
@@ -7716,13 +7821,21 @@ do
     local GravityVec = Vector3.new(0, -28, 0)
     local Gravity = 28
 
+    local function RandName()
+        local Out = ""
+        for _ = 1, math.random(6, 10) do
+            Out = Out .. string.char(math.random(97, 122))
+        end
+        return Out
+    end
+
     -- // Functions
 
     local function LoadMobileUi()
     	if not Services.IsMobile then return end
 
     	local MobileGui = Instance.new("ScreenGui")
-    	MobileGui.Name = "ViseHubMobile"
+    	MobileGui.Name = RandName()
     	MobileGui.ResetOnSpawn = false
     	MobileGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     	MobileGui.Parent = Services.LocalPlayer.PlayerGui
