@@ -5348,13 +5348,12 @@ do
         { "Ankles Reach",     function() return s.AnklesReach.Enabled end },
         { "Auto Tip Off",     function() return s.AutoTipOff.Enabled end },
         { "FPS Cap",          function() return s.FPSCap.Enabled end },
-        { "Anti Travel Hook", function() return s.AntiTravelHook.Enabled end },
+        { "Anti Travel", function() return s.AntiTravelHook.Enabled end },
         { "Clan Tag",         function() return s.ClanTag.Enabled end },
         { "Chat Tag",         function() return s.ChatTag.Enabled end },
         { "Local Anonymizer", function() return s.LocalAnonymizer.Enabled end },
         { "Logo Badges",      function() return s.LogoBadges.VIP or s.LogoBadges.Youtuber or s.LogoBadges.Twitch or s.LogoBadges.Booster or s.LogoBadges.Tester or s.LogoBadges.Staff end },
         { "Wallet Spoof",     function() return s.WalletSpoof.Enabled end },
-        { "Anti Travel",      function() return s.Misc.AntiTravel end },
         { "Anti OOB",         function() return s.Misc.AntiOOB end },
         { "Anti Moderator",   function() return s.Misc.AntiModerator end },
         { "Anti Fall",        function() return s.Misc.AntiFall end },
@@ -7559,13 +7558,7 @@ do
         end
     })
     miscSec:Toggle({
-        Name = "Anti Travel (block remote)",
-        Default = s.Misc.AntiTravel,
-        Flag = "misc_antitravel",
-        Callback = function(v) s.Misc.AntiTravel = v end
-    })
-    miscSec:Toggle({
-        Name = "Anti Travel Hook (namecall + FS)",
+        Name = "Anti Travel Hook",
         Default = s.AntiTravelHook.Enabled,
         Flag = "misc_antitravelhook",
         Callback = function(v) s.AntiTravelHook.Enabled = v end
