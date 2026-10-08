@@ -2832,34 +2832,34 @@ register_module("features/catching/magnets", function()
     	return Char:FindFirstChildOfClass("Humanoid") ~= nil and Char ~= Refs.GetChar()
     end)
 
-    local function Run()
-    	Config.Threads.FootballMagnets = task.spawn(LPH_JIT_MAX(function()
-    		while task.wait() do
-    			if not ViseHub.Catching.Magnets or not Refs.GetChar() or not Refs.GetHrp() then continue end
-    			local Football = Helpers.GetClosestLooseFootball()
-    			if not Football then continue end
+	local function Run()
+		Config.Threads.FootballMagnets = task.spawn(LPH_JIT_MAX(function()
+			while task.wait() do
+				if not ViseHub.Catching.Magnets then continue end
 
-    			local Char = Refs.GetChar()
-    			if not Char then continue end
+				local Char = Refs.GetChar()
+				local Hrp = Refs.GetHrp()
+				if not Char or not Hrp then continue end
 
-    			local RawRadius = ViseHub.Catching.CustomizableRadius
-    			local Radius = ViseHub.Catching.MagEnhancer and (RawRadius * ViseHub.Catching.MagEnhancerMultiplier) or RawRadius
-    			local Hrp = Refs.GetHrp()
-    			local Dist = (Football.Position - Hrp.Position).Magnitude
+				local Football = Helpers.GetClosestLooseFootball()
+				if not Football then continue end
 
-    			if Dist <= Radius then
-    				for _, Name in Helpers.GetCatchPartNames() do
-    					local Part = Char:FindFirstChild(Name)
-    					if Part and Part:IsA("BasePart") and firetouchinterest then
-    						pcall(firetouchinterest, Part, Football, 0)
-    						task.wait()
-    						pcall(firetouchinterest, Part, Football, 1)
-    					end
-    				end
-    				task.wait(ViseHub.Catching.CustomizableDelay)
-    			end
-    		end
-    	end))
+				local IsPractice = game.PlaceId == Helpers.PracticePlace
+				local CatchRight = Char:FindFirstChild(IsPractice and "CatchRight" or "CatchR")
+				local CatchLeft = Char:FindFirstChild(IsPractice and "CatchLeft" or "CatchL")
+				if not CatchRight or not CatchLeft then continue end
+
+				local RawRadius = ViseHub.Catching.CustomizableRadius
+				local Radius = (ViseHub.Catching.MagEnhancer and RawRadius * ViseHub.Catching.MagEnhancerMultiplier) or RawRadius
+				local Dist = (Football.Position - Hrp.Position).Magnitude
+
+				if Dist <= Radius then
+					CatchLeft.Position = Football.Position
+					CatchRight.Position = Football.Position
+					task.wait(ViseHub.Catching.CustomizableDelay)
+				end
+			end
+		end))
 
     	Config.Threads.ShowMagHitbox = task.spawn(LPH_JIT_MAX(function()
     		while task.wait(0.1) do
