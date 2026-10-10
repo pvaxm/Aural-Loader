@@ -273,6 +273,7 @@ local Players = cloneref(game:GetService("Players"))
 local LocalPlayer = Players.LocalPlayer
 local remote = cloneref(game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("lukeEvent"))
 local TweenService = cloneref(game:GetService("TweenService"))
+local CollectionService = cloneref(game:GetService("CollectionService"))
 local travelevent = cloneref(game:GetService("ReplicatedStorage").Remotes:FindFirstChild("sbEvent"))
 
 local Camera = workspace.CurrentCamera
@@ -331,7 +332,7 @@ getgenv().Settings = {
         ArrayList = false,
     },
     Ball = {
-        BallMags = false, BallMagRange = 15, BallMagVisualizer = false, MagnetKeybind = "M",
+        BallMags = false, SmartReach = false, SmartReachDistance = 14, BallMagRange = 15, BallMagVisualizer = false, MagnetKeybind = "M",
         BallReach = false, BallReachRange = 10, BallReachVisualizer = false, ReachKeybind = "N",
     },
     Player = { Walkspeed = false, WSvalue = 1.35 },
@@ -1810,126 +1811,705 @@ function getClosestOpponentBallPart()
     return closestPart
 end
 
-local reachHitbox = nil
-local reachVisualizer = nil
-local reachConnection = nil
+-- ============================================================
 
-function removeReachVisualizer()
-    if reachVisualizer then
-        reachVisualizer:Destroy()
-        reachVisualizer = nil
+
+-- AURAL REACH  (ported from Golden Eagle -- firetouchinterest only)
+
+
+-- ============================================================
+
+
+local ReachState = {
+
+
+    LastTouchAt   = setmetatable({}, { __mode = "k" }), -- per-ball throttle
+
+
+    TouchCooldown = 0.075,
+
+
+    ReachScanAt   = 0,
+
+
+    ScanInterval  = 0.075,
+
+
+    SmartActive   = false,
+
+
+}
+
+
+
+
+
+local function HasLocalBall()
+
+
+    local c = LocalPlayer.Character
+
+
+    return c and c:FindFirstChild("Basketball") ~= nil
+
+
+end
+
+
+
+
+
+local function IsLooseBall(Ball)
+
+
+    if not (Ball and Ball.Parent and Ball:IsA("BasePart")
+
+
+            and Ball:IsDescendantOf(workspace)) then
+
+
+        return false
+
+
     end
-end
 
-function removeReachHitbox()
-    if reachHitbox then
-        reachHitbox:Destroy()
-        reachHitbox = nil
+
+    if Ball.Anchored then return false end
+
+
+    for _, p in ipairs(Players:GetPlayers()) do
+
+
+        local c = p.Character
+
+
+        if c and Ball:IsDescendantOf(c) then return false end
+
+
     end
-    removeReachVisualizer()
+
+
+    return true
+
+
 end
 
-function createReachHitbox(character)
-    if reachHitbox then reachHitbox:Destroy(); reachHitbox = nil end
-    if character:FindFirstChild("FatalReach") then character.FatalReach:Destroy() end
+
+
+
+
+local function GetNearestLocalPart(Target)
+
+
+    local c = LocalPlayer.Character
+
+
+    if not (c and Target) then return nil end
+
+
+    local nearest, nearestD
+
+
+    for _, p in ipairs(c:GetChildren()) do
+
+
+        if p:IsA("BasePart") then
+
+
+            local d = (p.Position - Target.Position).Magnitude
+
+
+            if not nearestD or d < nearestD then nearest, nearestD = p, d end
+
+
+        end
+
+
+    end
+
+
+    return nearest, nearestD
+
+
 end
+
+
+
+
+
+-- Port of GE's TryTouch, firetouchinterest path only
+
+
+local function TryTouch(Ball, TouchPart)
+
+
+    if not (Ball and TouchPart and Ball.Parent and TouchPart.Parent) then
+
+
+        return false
+
+
+    end
+
+
+    local now = os.clock()
+
+
+    if now - (ReachState.LastTouchAt[Ball] or 0) < ReachState.TouchCooldown then
+
+
+        return false
+
+
+    end
+
+
+    ReachState.LastTouchAt[Ball] = now
+
+
+
+
+
+    if type(firetouchinterest) ~= "function" then return false end
+
+
+    local ok = pcall(function()
+
+
+        firetouchinterest(TouchPart, Ball, 0)
+
+
+        task.defer(function()
+
+
+            if Ball and Ball.Parent and TouchPart and TouchPart.Parent then
+
+
+                pcall(firetouchinterest, TouchPart, Ball, 1)
+
+
+            end
+
+
+        end)
+
+
+    end)
+
+
+    return ok
+
+
+end
+
+
+
+
+
+-- Port of GE's StepHeldReach: reaches the ball another player is holding
+
+
+local function StepHeldReach(Radius)
+
+
+    local myChar = LocalPlayer.Character
+
+
+    if not myChar then return end
+
+
+    for _, TargetPlayer in ipairs(Players:GetPlayers()) do
+
+
+        if TargetPlayer ~= LocalPlayer then
+
+
+            local tChar  = TargetPlayer.Character
+
+
+            local tHum   = tChar and tChar:FindFirstChildOfClass("Humanoid")
+
+
+            local tTorso = tChar and (
+
+
+                tChar:FindFirstChild("Torso")
+
+
+                or tChar:FindFirstChild("UpperTorso")
+
+
+                or tChar:FindFirstChild("HumanoidRootPart"))
+
+
+            if tChar and tHum and tHum.Health > 0 and tTorso then
+
+
+                local TouchPart, Distance = GetNearestLocalPart(tTorso)
+
+
+                if TouchPart and Distance and Distance <= Radius then
+
+
+                    local seen = {}
+
+
+                    for _, Child in ipairs(tChar:GetChildren()) do
+
+
+                        if Child:IsA("Tool") or Child:IsA("Folder")
+
+
+                           or (Child:IsA("Model") and Child.Name == "Basketball") then
+
+
+                            for _, o in ipairs(Child:GetDescendants()) do
+
+
+                                if o:IsA("BasePart") and not seen[o] then
+
+
+                                    seen[o] = true
+
+
+                                    TryTouch(o, TouchPart)
+
+
+                                end
+
+
+                            end
+
+
+                        elseif Child:IsA("BasePart") and not seen[Child] then
+
+
+                            seen[Child] = true
+
+
+                            TryTouch(Child, TouchPart)
+
+
+                        end
+
+
+                    end
+
+
+                end
+
+
+            end
+
+
+        end
+
+
+    end
+
+
+end
+
+
+
+
+
+-- Port of GE's Step, loose-ball half -- scans BallHandle-tagged parts
+
+
+local function StepLooseReach()
+
+
+    local myChar = LocalPlayer.Character
+
+
+    if not myChar then return end
+
+
+    local hum  = myChar:FindFirstChildOfClass("Humanoid")
+
+
+    local root = myChar:FindFirstChild("HumanoidRootPart")
+
+
+    if not (hum and root) or hum.Health <= 0 then return end
+
+
+
+
+
+    local Radius = math.clamp(tonumber(s.Ball.BallReachRange) or 10, 0.01, 15)
+
+
+
+
+
+    -- Smart Reach: shrink radius when a defender is close
+
+
+    ReachState.SmartActive = false
+
+
+    if s.Ball.SmartReach then
+
+
+        local nearestD = math.huge
+
+
+        for _, p in ipairs(Players:GetPlayers()) do
+
+
+            if p ~= LocalPlayer and p.Character then
+
+
+                local r = p.Character:FindFirstChild("HumanoidRootPart")
+
+
+                if r then
+
+
+                    local d = (r.Position - root.Position).Magnitude
+
+
+                    if d < nearestD then nearestD = d end
+
+
+                end
+
+
+            end
+
+
+        end
+
+
+        if nearestD <= (tonumber(s.Ball.SmartReachDistance) or 14) then
+
+
+            ReachState.SmartActive = true
+
+
+            Radius = math.min(Radius, 8)
+
+
+        end
+
+
+    end
+
+
+
+
+
+    local Target = root.Position
+
+
+        + root.CFrame.LookVector * 1.25
+
+
+        + Vector3.new(0, 0.15, 0)
+
+
+
+
+
+    for _, Ball in ipairs(CollectionService:GetTagged("BallHandle")) do
+
+
+        if Ball:IsA("BasePart") and Ball.Parent and IsLooseBall(Ball) then
+
+
+            local Distance = (Target - Ball.Position).Magnitude
+
+
+            if Distance <= Radius then
+
+
+                TryTouch(Ball, root)
+
+
+            end
+
+
+        end
+
+
+    end
+
+
+end
+
+
+
+
 
 function performReachSteal()
-    if not s.Ball.BallReach then return end
-    local char = LocalPlayer.Character
-    if not char then return end
-    if char:FindFirstChild("Basketball") then return end
-    local head = char:FindFirstChild("Head")
-    if not head then return end
-    local range = s.Ball.BallReachRange or 10
 
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        local pChar = player.Character
-        if not pChar then continue end
-        local basketball = pChar:FindFirstChild("Basketball")
-        if not basketball then continue end
-        local ballPart = basketball:FindFirstChild("Ball") or basketball:FindFirstChildOfClass("BasePart")
-        if not ballPart then continue end
-        local dist = (head.Position - ballPart.Position).Magnitude
-        if dist <= range then
-            firetouchinterest(head, ballPart, 0)
-            task.wait()
-            firetouchinterest(head, ballPart, 1)
-            return
-        end
-    end
+
+    if not s.Ball.BallReach then return end
+
+
+    local now = os.clock()
+
+
+    if now - ReachState.ReachScanAt < ReachState.ScanInterval then return end
+
+
+    ReachState.ReachScanAt = now
+
+
+
+
+
+    local Radius = math.clamp(tonumber(s.Ball.BallReachRange) or 10, 0.01, 15)
+
+
+    StepHeldReach(Radius)
+
+
+    StepLooseReach()
+
+
 end
+
+
+
+
+
+function removeReachVisualizer()
+
+
+    if reachVisualizer then reachVisualizer:Destroy(); reachVisualizer = nil end
+
+
+end
+
+
+
+
+
+function removeReachHitbox()
+
+
+    if reachHitbox then reachHitbox:Destroy(); reachHitbox = nil end
+
+
+    removeReachVisualizer()
+
+
+end
+
+
+
+
+
+function createReachHitbox(character)
+
+
+    if reachHitbox then reachHitbox:Destroy(); reachHitbox = nil end
+
+
+    if character:FindFirstChild("FatalReach") then character.FatalReach:Destroy() end
+
+
+end
+
+
+
+
 
 function updateReachVisualizer()
+
+
     if not s.Ball.BallReachVisualizer then
+
+
         removeReachVisualizer()
+
+
         return
+
+
     end
+
+
+
+
 
     local targetPlayer = getclosestplayerwithball and getclosestplayerwithball() or nil
-    local ballPart = nil
+
+
+    local ballPart
+
+
     if targetPlayer and targetPlayer.Character then
+
+
         local oppBall = targetPlayer.Character:FindFirstChild("Basketball")
-        if oppBall then
-            ballPart = oppBall:FindFirstChild("Ball")
-        end
+
+
+        if oppBall then ballPart = oppBall:FindFirstChild("Ball") end
+
+
     end
 
-    if not ballPart then
-        removeReachVisualizer()
-        return
-    end
+
+
+
+
+    if not ballPart then removeReachVisualizer(); return end
+
+
+
+
 
     local range = s.Ball.BallReachRange or 10
 
+
+
+
+
     if not reachVisualizer or not reachVisualizer.Parent then
+
+
         reachVisualizer = Instance.new("Part")
+
+
         reachVisualizer.Name = "ReachBallVisualizer"
+
+
         reachVisualizer.Shape = Enum.PartType.Ball
+
+
         reachVisualizer.Size = Vector3.new(range, range, range)
+
+
         reachVisualizer.Transparency = 0.65
+
+
         reachVisualizer.CanCollide = false
+
+
         reachVisualizer.CanTouch = false
+
+
         reachVisualizer.CanQuery = false
+
+
         reachVisualizer.CastShadow = false
+
+
         reachVisualizer.Massless = true
+
+
         reachVisualizer.Anchored = true
+
+
         reachVisualizer.Parent = workspace
+
+
     end
+
+
+
+
 
     reachVisualizer.Size = Vector3.new(range, range, range)
+
+
     reachVisualizer.CFrame = ballPart.CFrame
+
+
     reachVisualizer.Transparency = 0.65
+
+
 end
+
+
+
+
 
 function enableReach()
+
+
     local char = LocalPlayer.Character
-    if not char then return end
-    createReachHitbox(char)
+
+
+    if char then createReachHitbox(char) end
+
+
+
+
+
     if reachConnection then reachConnection:Disconnect(); reachConnection = nil end
+
+
     reachConnection = RunService.Heartbeat:Connect(function()
+
+
         if not s.Ball.BallReach and not s.Ball.BallReachVisualizer then
+
+
             removeReachHitbox()
+
+
             return
+
+
         end
+
+
         performReachSteal()
+
+
         if s.Ball.BallReachVisualizer then
+
+
             updateReachVisualizer()
+
+
         else
+
+
             removeReachVisualizer()
+
+
         end
+
+
     end)
+
+
 end
 
+
+
+
+
 function disableReach()
+
+
     if not s.Ball.BallReachVisualizer then
+
+
         if reachConnection then reachConnection:Disconnect(); reachConnection = nil end
+
+
         removeReachHitbox()
+
+
         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("FatalReach") then
+
+
             LocalPlayer.Character.FatalReach:Destroy()
+
+
         end
+
+
     end
+
+
 end
 
 do
@@ -5348,13 +5928,12 @@ do
         { "Ankles Reach",     function() return s.AnklesReach.Enabled end },
         { "Auto Tip Off",     function() return s.AutoTipOff.Enabled end },
         { "FPS Cap",          function() return s.FPSCap.Enabled end },
-        { "Anti Travel Hook", function() return s.AntiTravelHook.Enabled end },
+        { "Anti Travel", function() return s.AntiTravelHook.Enabled end },
         { "Clan Tag",         function() return s.ClanTag.Enabled end },
         { "Chat Tag",         function() return s.ChatTag.Enabled end },
         { "Local Anonymizer", function() return s.LocalAnonymizer.Enabled end },
         { "Logo Badges",      function() return s.LogoBadges.VIP or s.LogoBadges.Youtuber or s.LogoBadges.Twitch or s.LogoBadges.Booster or s.LogoBadges.Tester or s.LogoBadges.Staff end },
         { "Wallet Spoof",     function() return s.WalletSpoof.Enabled end },
-        { "Anti Travel",      function() return s.Misc.AntiTravel end },
         { "Anti OOB",         function() return s.Misc.AntiOOB end },
         { "Anti Moderator",   function() return s.Misc.AntiModerator end },
         { "Anti Fall",        function() return s.Misc.AntiFall end },
@@ -6804,6 +7383,22 @@ do
             s.Ball.ReachKeybind = key.Name
         end
     })
+    ballSec:Toggle({
+
+
+    Name = "Smart reach",
+
+
+    Default = s.Ball.SmartReach,
+
+
+    Flag = "ball_smart_reach",
+
+
+    Callback = function(v) s.Ball.SmartReach = v end
+
+
+})
     ballSec:Slider({
         Name = "Reach size",
         Min = 1, Max = 30,
@@ -7559,13 +8154,7 @@ do
         end
     })
     miscSec:Toggle({
-        Name = "Anti Travel (block remote)",
-        Default = s.Misc.AntiTravel,
-        Flag = "misc_antitravel",
-        Callback = function(v) s.Misc.AntiTravel = v end
-    })
-    miscSec:Toggle({
-        Name = "Anti Travel Hook (namecall + FS)",
+        Name = "Anti Travel Hook",
         Default = s.AntiTravelHook.Enabled,
         Flag = "misc_antitravelhook",
         Callback = function(v) s.AntiTravelHook.Enabled = v end
