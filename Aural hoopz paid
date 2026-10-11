@@ -291,7 +291,7 @@ local hoopDistConnection        = nil
 
 getgenv().Settings = {
     Shooting = {
-        Mode = "Aural", AuralKeybind = Enum.KeyCode.X, HumanizeAim = false, HumanizeStrength = 0, MissChance = 0, AuralEnabled = false, FatalEnabled = false,
+        Mode = "Aural", AuralKeybind = Enum.KeyCode.X, HumanizeAim = false, HumanizeStrength = 0, MissChance = 0, AuralEnabled = false, ArmInMatch = false, FatalEnabled = false,
         ShotDelay = 0.32, ShotYAxis = 0, RandomizeShotDelay = false,
         ShotDelayMin = 0.25, ShotDelayMax = 0.38, GreenChance = 0,
         ThreesOnly = false, AimAssist = false, EBLHop = false
@@ -307,7 +307,7 @@ getgenv().Settings = {
         JumpBeforePass = true, JumpDelay = 0.25, AutoAdjust = false,
     },
     Defending = {
-        AutoGuard = false, AutoGuardButton = false, AutoGuardNearest = false, AutoGuardKeybind = "K",
+        AutoGuard = false, OnlyGuardInMatch = false, AutoGuardButton = false, AutoGuardNearest = false, AutoGuardKeybind = "K",
         AutoGuardMode = "Prediction", AutoGuardRange = 33, GuardPrediction = 0.58, SpacingDistance = 3,
         ReactionTime = 0, JumpIfThrown = false
     },
@@ -394,6 +394,191 @@ getgenv().Settings = {
     },
     LocalAnonymizer = { Enabled = false, Alias = "Aural Hub" },
 }
+
+local MatchState = {
+
+
+    Cached = false,
+
+
+    CheckedAt = 0,
+
+
+}
+
+
+
+
+
+local function safeFind(parent, name)
+
+
+    if typeof(parent) ~= "Instance" then return nil end
+
+
+    return parent:FindFirstChild(name)
+
+
+end
+
+
+
+
+
+function IsInMatch()
+
+
+    local now = os.clock()
+
+
+    if now - MatchState.CheckedAt < 0.5 then
+
+
+        return MatchState.Cached
+
+
+    end
+
+
+    MatchState.CheckedAt = now
+
+
+
+
+
+    local inMatch = LocalPlayer:GetAttribute("Ingame") == true
+
+
+        or LocalPlayer:GetAttribute("InGame") == true
+
+
+        or LocalPlayer:GetAttribute("InMatch") == true
+
+
+
+
+
+    if not inMatch and safeFind(workspace, "Court") then
+
+
+        inMatch = true
+
+
+    end
+
+
+
+
+
+    if not inMatch then
+
+
+        local char = LocalPlayer.Character
+
+
+        local basketball = char and safeFind(char, "Basketball")
+
+
+        local gameFolder = basketball and safeFind(basketball, "[GAME]")
+
+
+        local currentGame = gameFolder and safeFind(gameFolder, "CurrentGame")
+
+
+        if currentGame and currentGame:IsA("ObjectValue") and currentGame.Value then
+
+
+            inMatch = true
+
+
+        end
+
+
+    end
+
+
+
+
+
+    if not inMatch then
+
+
+        local courts = safeFind(workspace, "Courts")
+
+
+        if courts then
+
+
+            for _, court in pairs(courts:GetChildren()) do
+
+
+                local courtPlayers = safeFind(court, "_CourtPlayers")
+
+
+                local settings = safeFind(court, "_CourtSettings")
+
+
+                local started = settings and safeFind(settings, "Started")
+
+
+                local isStarted = started and (
+
+
+                    (started:IsA("BoolValue") and started.Value == true)
+
+
+                    or started:GetAttribute("Value") == true
+
+
+                )
+
+
+                if courtPlayers and isStarted then
+
+
+                    for _, slot in pairs(courtPlayers:GetChildren()) do
+
+
+                        if slot:IsA("ObjectValue") and slot.Value == LocalPlayer then
+
+
+                            inMatch = true
+
+
+                            break
+
+
+                        end
+
+
+                    end
+
+
+                end
+
+
+                if inMatch then break end
+
+
+            end
+
+
+        end
+
+
+    end
+
+
+
+
+
+    MatchState.Cached = inMatch
+
+
+    return inMatch
+
+
+end
 
 local rankelo = {
     ["Rookie 1"]=0,["Rookie 2"]=25,["Rookie 3"]=50,
@@ -4757,6 +4942,7 @@ function setupCharacterAural(char)
         airborne = true
 
         if not s.Shooting.AuralEnabled then return end
+if s.Shooting.ArmInMatch and not IsInMatch() then return end
         if not hasball(char) then return end
 
         if s.Shooting.EBLHop then
@@ -5103,6 +5289,7 @@ do
         local frameSkip = 0
         guardConnection = RunService.Stepped:Connect(function()
             if not s.Defending.AutoGuard then return end
+if s.Defending.OnlyGuardInMatch and not IsInMatch() then return end
             frameSkip += 1
             if frameSkip < 3 then return end
             frameSkip = 0
@@ -7021,7 +7208,47 @@ do
             s.Shooting.AuralKeybind = key.Name
         end
     })
+    auralSection:Toggle({
 
+
+
+
+
+
+
+        Name = "Only Arm In Match",
+
+
+
+
+
+
+
+        Default = s.Shooting.ArmInMatch,
+
+
+
+
+
+
+
+        Flag = "aural_arminmatch",
+
+
+
+
+
+
+
+        Callback = function(value) s.Shooting.ArmInMatch = value end
+
+
+
+
+
+
+
+    })
     auralSection:Toggle({
         Name = "Humanize Aim",
         Default = s.Shooting.HumanizeAim,
@@ -7145,6 +7372,63 @@ do
             s.Defending.AutoGuard = value
             if value then enableAutoGuard() else disableAutoGuard() end
         end
+    })
+    guardSec:Toggle({
+
+
+
+
+
+
+
+        Name = "Only Guard In Match",
+
+
+
+
+
+
+
+        Default = s.Defending.OnlyGuardInMatch,
+
+
+
+
+
+
+
+        Flag = "defend_guardinmatch",
+
+
+
+
+
+
+
+        Callback = function(value)
+
+
+
+
+
+
+
+            s.Defending.OnlyGuardInMatch = value
+
+
+
+
+
+
+
+        end
+
+
+
+
+
+
+
     })
     guardSec:Dropdown({
         Name = "Auto Guard Mode",
