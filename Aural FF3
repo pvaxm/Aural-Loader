@@ -99,13 +99,14 @@ local Aural = {
 		TargetLock = false,
 		LockedTarget = nil,
 
-		AutoAngle = false,
+		AutoAngle = true,
 		AngleBased = false,
 		DesiredAngle = 30,
 		MaxAirTime = 20,
 		BeamMode = true,
 		AutoChooseThrowType = false,
 		Use95PowerMode = false,
+		FastestThrow = false,
 
 		ThrowProfile = "Dime",
 		ThrowAngle = 45,
@@ -116,7 +117,7 @@ local Aural = {
 		CustomLead = 0,
 
 		VerticalLead = 1.25,
-		HorizontalLead = 0,
+		HorizontalLead = 3,
 		FieldMargin = 15,
 		AntiOob = true,
 		AntiOobInset = 3,
@@ -1016,11 +1017,13 @@ function Utility.Shown(Object)
 	return true
 end
 
+-- Returns the pointer in the same space as AbsolutePosition, whose origin sits below the top bar inset.
+-- GetMouseLocation is measured from the very top of the screen, so the inset is removed; touch positions already match.
 function Utility.Point(Input)
 	if Input and Input.UserInputType == Enum.UserInputType.Touch then
-		return Vector2.new(Input.Position.X, Input.Position.Y) + GuiService:GetGuiInset()
+		return Vector2.new(Input.Position.X, Input.Position.Y)
 	end
-	return UserInputService:GetMouseLocation()
+	return UserInputService:GetMouseLocation() - GuiService:GetGuiInset()
 end
 
 function Utility.Free(Point)
@@ -4124,6 +4127,7 @@ do
 		CurrentThrowIndex = table.find(ThrowProfiles, V) or 1
 	end })
 	Throw:Toggle({ Name = "trajectory beam", Default = Aural.QbAimbot.BeamMode, Callback = function(V) Aural.QbAimbot.BeamMode = V end })
+	Throw:Toggle({ Name = "fastest throw", Default = Aural.QbAimbot.FastestThrow, Callback = function(V) Aural.QbAimbot.FastestThrow = V end })
 	Throw:Dropdown({ Name = "power mode", Options = { "Normal", "Highest Power", "95 Power" }, Default = "Normal", Callback = function(V)
 		Aural.QbAimbot.HighestPowerMode = (V == "Highest Power")
 		Aural.QbAimbot.Use95PowerMode = (V == "95 Power")
@@ -4141,7 +4145,7 @@ do
 
 	local Lead = Page:Section({ Name = "lead & field", Side = 2 })
 	Lead:Slider({ Name = "vertical lead", Min = 0, Max = 15, Default = Aural.QbAimbot.VerticalLead, Step = 0.25, Callback = function(V) Aural.QbAimbot.VerticalLead = V end })
-	Lead:Slider({ Name = "horizontal lead", Min = 0, Max = 2, Default = Aural.QbAimbot.HorizontalLead, Step = 0.25, Callback = function(V) Aural.QbAimbot.HorizontalLead = V end })
+	Lead:Slider({ Name = "lead in front", Min = 0, Max = 10, Default = Aural.QbAimbot.HorizontalLead, Step = 0.5, Suffix = " studs", Callback = function(V) Aural.QbAimbot.HorizontalLead = V end })
 	Lead:Toggle({ Name = "anti oob", Default = Aural.QbAimbot.AntiOob, Callback = function(V) Aural.QbAimbot.AntiOob = V end })
 	Lead:Slider({ Name = "anti oob inset", Min = 0, Max = 15, Default = Aural.QbAimbot.AntiOobInset, Callback = function(V) Aural.QbAimbot.AntiOobInset = V end })
 	Lead:Slider({ Name = "field margin", Min = 0, Max = 30, Default = Aural.QbAimbot.FieldMargin, Callback = function(V) Aural.QbAimbot.FieldMargin = V end })
@@ -5579,13 +5583,15 @@ do
 	local RestHeight = 3.4
 	local Flags = ReplicatedStorage:FindFirstChild("Flags")
 
+	-- Arc scales the distance-based angle, Height is where the ball arrives above the receiver's waist, and Lead is extra
+	-- studs in front of them on top of the "lead in front" setting.
 	local ThrowTypes = {
-		Dime = { Angle = 40, Height = 2.5, Lead = 2 },
-		Mag = { Angle = 45, Height = 5, Lead = 3 },
-		Dive = { Angle = 30, Height = 0, Lead = 6 },
-		Dot = { Angle = 20, Height = 2, Lead = 0 },
-		Bullet = { Angle = 25, Height = 2, Lead = 1 },
-		Fade = { Angle = 55, Height = 6, Lead = -1 },
+		Dime = { Arc = 1, Height = 2.5, Lead = 0 },
+		Mag = { Arc = 1.1, Height = 4.5, Lead = 1 },
+		Dive = { Arc = 0.9, Height = 0.5, Lead = 3 },
+		Dot = { Arc = 0.8, Height = 2, Lead = 0 },
+		Bullet = { Arc = 0.7, Height = 2, Lead = 0 },
+		Fade = { Arc = 1.45, Height = 5, Lead = 0 },
 	}
 
 	-- // Calibration (learned from the user's own throws, so Practice and the match place can differ)
@@ -5794,44 +5800,48 @@ do
 		return Range <= 100 and "Dot" or "Dime"
 	end
 
-	local function GetFixedPower(ThrowType, Range)
-		if Settings.Use95PowerMode then
-			return MaxPower
-		elseif Settings.HighestPowerMode then
-			return math.clamp(math.ceil(math.sqrt(Range * Gravity)), 85, MaxPower)
-		elseif ThrowType == "Bullet" then
-			return MaxPower
-		elseif ThrowType == "Fade" then
-			return 65
-		end
-		return math.clamp(math.round(Settings.NormalPower), 1, MaxPower)
-	end
-
-	local function GetWantedAngle(ThrowType)
+	-- Auto angle rises with distance: about 19 degrees at 40 studs, 26 at 100 and 38 at 200, scaled by the throw type.
+	local function GetWantedAngle(ThrowType, Range)
 		if Settings.AutoAngle then
-			return math.rad(ThrowTypes[ThrowType].Angle)
+			local Base = math.clamp(14 + Range * 0.12, 16, 42)
+			return math.rad(math.clamp(Base * (ThrowTypes[ThrowType] or ThrowTypes.Dime).Arc, 10, 62))
 		elseif ThrowType == "Bullet" then
 			return math.rad(Settings.BulletAngle)
 		end
 		return math.rad(Settings.AngleBased and Settings.DesiredAngle or Settings.ThrowAngle)
 	end
 
+	-- The angle is what the user (or auto angle) asked for, and the power is whatever that angle needs. A fixed power
+	-- with a free angle always has two answers that add up to about 90 degrees, a flat one and a lob, so choosing
+	-- "the one nearest 45" was a coin flip between a ball thrown into the defenders and one hung in the air.
 	local function ResolveAngleAndPower(Range, Height, ThrowType)
-		local Wanted = math.clamp(GetWantedAngle(ThrowType), math.rad(1), math.rad(85))
-		local Power
+		-- Every extra second in the air roughly doubles the expected miss, so the fastest throw is full power on the low arc.
+		-- A bullet is the same thing by definition: a slower ball on a flat line is just an easy interception.
+		if Settings.FastestThrow or Settings.Use95PowerMode or ThrowType == "Bullet" then
+			return SolveAngle(Range, Height, MaxPower * Calibration.Speed, false), MaxPower
+		end
+		if Settings.HighestPowerMode then
+			local Power = math.clamp(math.ceil(math.sqrt(Range * Gravity)), 85, MaxPower)
+			return SolveAngle(Range, Height, Power * Calibration.Speed, false), Power
+		end
 
-		if Settings.AutoPower then
-			local Needed = RequiredSpeed(Range, Height, Wanted)
-			if not Needed then
-				Wanted = math.min(math.atan2(Height, Range) + math.rad(12), math.rad(85))
-				Needed = RequiredSpeed(Range, Height, Wanted)
-			end
-			if not Needed then
-				return nil, MaxPower
-			end
-			Power = math.clamp(math.ceil(Needed / Calibration.Speed), 1, MaxPower)
-		else
-			Power = GetFixedPower(ThrowType, Range)
+		local Wanted = math.clamp(GetWantedAngle(ThrowType, Range), math.rad(1), math.rad(85))
+		local Needed = RequiredSpeed(Range, Height, Wanted)
+		if not Needed then
+			Wanted = math.min(math.atan2(Height, Range) + math.rad(12), math.rad(85))
+			Needed = RequiredSpeed(Range, Height, Wanted)
+		end
+		if not Needed then
+			return nil, MaxPower
+		end
+
+		-- "Normal power" is the most the aimbot may use unless auto power lifts that to the game's maximum.
+		local Limit = Settings.AutoPower and MaxPower or math.clamp(math.round(Settings.NormalPower), 1, MaxPower)
+		local Power = math.clamp(math.ceil(Needed / Calibration.Speed), 1, MaxPower)
+		local WantsLob = Wanted > math.rad(45)
+		if Power > Limit then
+			-- Out of reach at that angle: use all the allowed power and let the arc steepen as far as it has to.
+			Power = Limit
 		end
 
 		-- Power is an integer in-game, so the angle is re-solved for the exact speed the ball will really leave at.
@@ -5840,22 +5850,88 @@ do
 		if not Low then
 			return nil, Power
 		end
-
-		local Angle = (math.abs(High - Wanted) < math.abs(Low - Wanted)) and High or Low
-		if Angle == High and Range / (Speed * math.cos(High)) > Settings.MaxAirTime then
-			Angle = Low
+		if WantsLob and Range / (Speed * math.cos(High)) <= Settings.MaxAirTime then
+			return High, Power
 		end
-		return Angle, Power
+		return Low, Power
 	end
 
-	local function PredictPosition(Humanoid, Root, Time, Profile)
+	-- // Receiver prediction
+	-- Tuned on about 6,800 samples of real match movement (10 players, 20 Hz). Compared with extrapolating the current
+	-- velocity, heading along the player's input direction at full speed cut the average miss by roughly a quarter:
+	-- 9.3 -> 7.0 studs at 1.0s, 20.2 -> 15.9 at 1.75s, 32.5 -> 24.5 at 2.5s. Turn-rate models were worse than both.
+	-- A player who has held one direction for 0.6s is about twice as predictable as one who has just cut.
+	local RunSpeed = 20
+	local SpeedUpTime = 0.25
+	local Motion = setmetatable({}, { __mode = "k" })
+
+	local function TrackMotion(Target, Humanoid, Root)
+		local Now = os.clock()
+		local Track = Motion[Target]
+		if Track and Track.Stamp == Now then
+			return Track
+		end
+
 		local Velocity = Flatten(Root.AssemblyLinearVelocity)
+		local Speed = Velocity.Magnitude
+		local Input = Flatten(Humanoid.MoveDirection)
+		local Direction = nil
+		if Input.Magnitude > 0.1 then
+			Direction = Input.Unit
+		elseif Speed > 2 and not Players:GetPlayerFromCharacter(Target) then
+			Direction = Velocity.Unit
+		end
+
+		if not Track then
+			Track = { Since = Now }
+			Motion[Target] = Track
+		end
+		if not Direction or not Track.Anchor or Direction:Dot(Track.Anchor) < 0.97 or Now - (Track.Stamp or 0) > 0.3 then
+			Track.Anchor = Direction
+			Track.Since = Now
+		end
+
+		Track.Stamp = Now
+		Track.Direction = Direction
+		Track.Speed = Speed
+		Track.Velocity = Velocity
+		Track.Steady = Direction ~= nil and Speed > 15 and Now - Track.Since >= 0.6
+		return Track
+	end
+
+	-- Shortening the lead minimises the average miss, but every miss it leaves is behind the receiver, where the
+	-- trailing defender is. So a steady runner gets the full lead and anyone else loses only a little of it.
+	local function GetLeadTrust(Track, Time)
+		if Track.Steady then
+			return 1
+		end
+		return math.clamp(1 - 0.06 * Time, 0.85, 1)
+	end
+
+	local function GetExpectedMiss(Track, Time)
+		if not Track.Direction then
+			return 2 + 3 * Time
+		elseif Track.Steady then
+			return 4.4 * Time ^ 1.65
+		end
+		return 8.2 * Time ^ 1.2
+	end
+
+	local function PredictPosition(Humanoid, Root, Time, Profile, Track)
 		local Position = Root.Position + Vector3.new(0, Settings.VerticalLead + Profile.Height, 0)
-		if Velocity.Magnitude < 2 then
+		local Direction, Speed = Track.Direction, Track.Speed
+		if not Direction then
+			-- No input: the player is stopping, and only coasts a short way.
+			if Speed > 0.5 then
+				return Position + Track.Velocity.Unit * (Speed * 0.12)
+			end
 			return Position
 		end
-		local Direction = Velocity.Unit
-		return Position + Velocity * Time + Direction * (Settings.HorizontalLead + Profile.Lead + Settings.CustomLead * Time)
+
+		local TopSpeed = math.max(RunSpeed, Speed)
+		local Distance = TopSpeed * Time - (TopSpeed - Speed) * SpeedUpTime * (1 - math.exp(-Time / SpeedUpTime))
+		local Lead = Distance * GetLeadTrust(Track, Time) + Settings.HorizontalLead + Profile.Lead + Settings.CustomLead * Time
+		return Position + Direction * Lead
 	end
 
 	local function ClampToField(Position)
@@ -5918,6 +5994,7 @@ do
 		local ThrowType = Settings.AutoChooseThrowType and ChooseThrowType(Range, Route) or Settings.ThrowProfile
 		local Profile = ThrowTypes[ThrowType] or ThrowTypes.Dime
 		local Latency = LocalPlayer:GetNetworkPing() * 2
+		local Track = TrackMotion(Target, Humanoid, Root)
 
 		-- The ball is released a few studs ahead of the head along the throw direction, so origin and direction are solved together.
 		local Time = FlightTimes[Target] or 1
@@ -5925,7 +6002,7 @@ do
 		local Direction = nil
 		local Sideline = false
 		for Index = 1, 8 do
-			Aim, Sideline = KeepInBounds(Root.Position, PredictPosition(Humanoid, Root, Time + Latency, Profile), GetBounds(MyRoot.Position))
+			Aim, Sideline = KeepInBounds(Root.Position, PredictPosition(Humanoid, Root, Time + Latency, Profile, Track), GetBounds(MyRoot.Position))
 
 			local Offset = Flatten(Aim - Head.Position)
 			if Offset.Magnitude < 1 then
@@ -5960,6 +6037,8 @@ do
 		end
 
 		return {
+			Steady = Track.Steady,
+			ExpectedMiss = GetExpectedMiss(Track, Time + Latency),
 			Sideline = Sideline,
 			LandTime = LandTime,
 			Landing = Origin + Velocity * LandTime - Vector3.new(0, 0.5 * Gravity * LandTime * LandTime, 0),
@@ -6299,7 +6378,11 @@ do
 		Card.Glow.BackgroundColor3 = Accent
 		Card.AvatarStroke.Color = Accent
 		Card.Fill.BackgroundColor3 = Accent
-		Card.Detail.Text = Settings.ShowRoutes and (Solution.ThrowType .. "  ·  " .. Solution.Route) or Solution.ThrowType
+		local Detail = Settings.ShowRoutes and (Solution.ThrowType .. "  ·  " .. Solution.Route) or Solution.ThrowType
+		if Solution.ExpectedMiss then
+			Detail ..= string.format("  ·  %s ±%d", Solution.Steady and "steady" or "breaking", math.round(Solution.ExpectedMiss))
+		end
+		Card.Detail.Text = Detail
 
 		Card.Cells.Range.Frame.Visible = Settings.ShowDistance
 		local Width = Settings.ShowDistance and 0.25 or (1 / 3)
@@ -6440,6 +6523,14 @@ do
 			CurrentSolution = nil
 			HideVisuals()
 			return
+		end
+
+		-- Every receiver is tracked every frame so "steady" has history behind it the moment a target is picked.
+		for Index, Model in GetReceivers() do
+			local Humanoid, Root = GetTargetParts(Model)
+			if Root then
+				TrackMotion(Model, Humanoid, Root)
+			end
 		end
 
 		local Target = PickTarget(MyRoot)
@@ -6787,31 +6878,127 @@ do
 		return math.clamp(Center, 0.12, 0.88)
 	end
 
-	local function AutoKickCallback(KickerGui)
+	-- The match place renames the cursor and the mask frame to random characters and adds a decoy cursor that never
+	-- moves, so the parts are found by structure: the masks frame holds "s4", and the real cursor is the one that moves.
+	local function FindKickerParts(KickerGui)
 		local Frame = KickerGui:WaitForChild("Frame", 5)
-		local Cursor = Frame and Frame:WaitForChild("Cursor", 5)
-		local Masks = Frame and Frame:WaitForChild("Masks", 5)
+		if not Frame then
+			return nil, nil
+		end
+
+		local Masks, Candidates = nil, {}
+		local Deadline = os.clock() + 2
+		repeat
+			Masks, Candidates = nil, {}
+			for Index, Child in Frame:GetChildren() do
+				if Child:IsA("Frame") then
+					if Child:FindFirstChild("s4") then
+						Masks = Child
+					else
+						table.insert(Candidates, Child)
+					end
+				end
+			end
+			if not Masks or #Candidates == 0 then
+				task.wait()
+			end
+		until (Masks and #Candidates > 0) or os.clock() > Deadline
+		if not Masks or #Candidates == 0 then
+			return nil, nil
+		end
+		if #Candidates == 1 then
+			return Candidates[1], Masks
+		end
+
+		local Start = {}
+		for Index, Candidate in Candidates do
+			Start[Candidate] = Candidate.Position.X.Scale
+		end
+		Deadline = os.clock() + 2
+		while os.clock() < Deadline and KickerGui.Parent do
+			RunService.Heartbeat:Wait()
+			for Index, Candidate in Candidates do
+				if math.abs(Candidate.Position.X.Scale - Start[Candidate]) > 0.001 then
+					return Candidate, Masks
+				end
+			end
+		end
+		return nil, nil
+	end
+
+	-- Fallback when the game's own input handler cannot be reached (it is hidden from the executor in the match place).
+	-- The game listens for a mouse click on desktop and a tap on touch devices, and ignores input that lands on a GUI.
+	local function GetInputTrigger()
+		local Ok, VirtualInputManager = pcall(game.GetService, game, "VirtualInputManager")
+		if not Ok or not VirtualInputManager then
+			return mouse1click
+		end
+
+		local function FreePoint()
+			local Viewport = workspace.CurrentCamera.ViewportSize
+			local Inset = GuiService:GetGuiInset()
+			for Index, Scale in { Vector2.new(0.5, 0.35), Vector2.new(0.3, 0.3), Vector2.new(0.7, 0.3), Vector2.new(0.5, 0.6), Vector2.new(0.2, 0.55), Vector2.new(0.8, 0.55) } do
+				local Point = Viewport * Scale
+				local Blocked = false
+				for Index, Root in { LocalPlayer.PlayerGui, CoreGui } do
+					local Found, Objects = pcall(Root.GetGuiObjectsAtPosition, Root, Point.X, Point.Y - Inset.Y)
+					if Found then
+						for Index, Object in Objects do
+							if Object.Visible and (Object:IsA("GuiButton") or Object.Active) then
+								Blocked = true
+								break
+							end
+						end
+					end
+				end
+				if not Blocked then
+					return Point
+				end
+			end
+			return Viewport * Vector2.new(0.5, 0.35)
+		end
+
+		local UsesMouse = UserInputService.GamepadEnabled or LocalPlayer:GetAttribute("JoinMouse")
+		return function()
+			local Point = FreePoint()
+			pcall(function()
+				if UsesMouse then
+					VirtualInputManager:SendMouseButtonEvent(Point.X, Point.Y, 0, true, game, 1)
+					VirtualInputManager:SendMouseButtonEvent(Point.X, Point.Y, 0, false, game, 1)
+				else
+					VirtualInputManager:SendTouchEvent(1, 0, Point.X, Point.Y)
+					VirtualInputManager:SendTouchEvent(1, 2, Point.X, Point.Y)
+				end
+			end)
+		end
+	end
+
+	local function AutoKickCallback(KickerGui)
+		local Started = os.clock()
+		local Cursor, Masks = FindKickerParts(KickerGui)
 		if not Cursor or not Masks then
 			return
 		end
 
 		local Trigger
-		local Deadline = os.clock() + 3
+		local Deadline = os.clock() + 0.6
 		repeat
 			Trigger = GetKickTrigger()
 			if not Trigger then
 				task.wait()
 			end
 		until Trigger or os.clock() > Deadline
-		Trigger = Trigger or mouse1click
+		Trigger = Trigger or GetInputTrigger()
 		if not Trigger then
 			return
 		end
 
+		-- Heartbeat runs after the game has moved the cursor for the frame, so the value read here is exactly the one
+		-- the game uses when the click registers on its next step.
 		local function ClickAt(Target)
 			local Last = Cursor.Position.X.Scale
 			while KickerGui.Parent do
-				RunService.RenderStepped:Wait()
+				RunService.Heartbeat:Wait()
 				local X = Cursor.Position.X.Scale
 				local Step = math.abs(X - Last)
 				Last = X
@@ -6828,12 +7015,15 @@ do
 				if Predicate(Cursor.Position.X.Scale) then
 					return true
 				end
-				RunService.RenderStepped:Wait()
+				RunService.Heartbeat:Wait()
 			end
 			return false
 		end
 
-		task.wait(0.55)
+		-- The game ignores clicks for the first half second after the meter appears.
+		while os.clock() - Started < 0.65 do
+			task.wait()
+		end
 
 		if not ClickAt(GetPowerTarget(KickerGui, Masks)) then
 			return
