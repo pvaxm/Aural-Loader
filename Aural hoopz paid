@@ -242,6 +242,863 @@ end
 local J = Janitor.new()
 getgenv().__aural_janitor = J
 
+local HeadRide = (function()
+
+
+    local players = game:GetService("Players")
+
+
+    local userInputService = game:GetService("UserInputService")
+
+
+
+
+
+    local localPlayer = players.LocalPlayer
+
+
+
+
+
+    local HeadRide = {}
+
+
+
+
+
+    HeadRide.Enabled = false
+
+
+    HeadRide.Target = nil
+
+
+    HeadRide.EngagedTarget = nil
+
+
+    HeadRide.TargetDistance = math.huge
+
+
+    HeadRide.Mounted = false
+
+
+    HeadRide.Engaged = false
+
+
+    HeadRide.LastJumpAt = 0
+
+
+    HeadRide.Status = "OFF"
+
+
+
+
+
+    HeadRide.Settings = {
+
+
+        EngageRange = 5,
+
+
+        FollowDistance = 7,
+
+
+        AutoJump = true,
+
+
+        JumpDistance = 2.8,
+
+
+        JumpCooldown = 0.8,
+
+
+        MountHorizontal = 1.5,
+
+
+        MountVertical = 1.5,
+
+
+        MountSmoothness = 18,
+
+
+        ManualOverride = true,
+
+
+        MovementKeys = {
+
+
+            Enum.KeyCode.W,
+
+
+            Enum.KeyCode.A,
+
+
+            Enum.KeyCode.S,
+
+
+            Enum.KeyCode.D
+
+
+        }
+
+
+    }
+
+
+
+
+
+    local function find(parent, name)
+
+
+        if not parent then return nil end
+
+
+        return parent:FindFirstChild(name)
+
+
+    end
+
+
+
+
+
+    local function getRoot(character)
+
+
+        return character and find(character, "HumanoidRootPart")
+
+
+    end
+
+
+
+
+
+    local function getHumanoid(character)
+
+
+        return character and find(character, "Humanoid")
+
+
+    end
+
+
+
+
+
+    local function getHead(character)
+
+
+        return character and find(character, "Head")
+
+
+    end
+
+
+
+
+
+    function HeadRide:SetSetting(name, value)
+
+
+        if self.Settings[name] ~= nil then
+
+
+            self.Settings[name] = value
+
+
+            return true
+
+
+        end
+
+
+        return false
+
+
+    end
+
+
+
+
+
+    function HeadRide:GetSetting(name)
+
+
+        return self.Settings[name]
+
+
+    end
+
+
+
+
+
+    function HeadRide:HasManualInput()
+
+
+        if not self.Settings.ManualOverride then return false end
+
+
+        for _, key in ipairs(self.Settings.MovementKeys) do
+
+
+            if userInputService:IsKeyDown(key) then return true end
+
+
+        end
+
+
+        if not userInputService.GamepadEnabled then return false end
+
+
+        local success, inputs = pcall(function()
+
+
+            return userInputService:GetGamepadState(Enum.UserInputType.Gamepad1)
+
+
+        end)
+
+
+        if success then
+
+
+            for _, input in ipairs(inputs) do
+
+
+                if input.KeyCode == Enum.KeyCode.Thumbstick1 then
+
+
+                    local position = Vector2.new(input.Position.X, input.Position.Y)
+
+
+                    if position.Magnitude > 0.18 then return true end
+
+
+                end
+
+
+            end
+
+
+        end
+
+
+        return false
+
+
+    end
+
+
+
+
+
+    function HeadRide:GetTargetData(target, localRoot)
+
+
+        if not target or target == localPlayer or not localRoot then
+
+
+            return nil
+
+
+        end
+
+
+        local character = target.Character
+
+
+        local root = getRoot(character)
+
+
+        local humanoid = getHumanoid(character)
+
+
+        local head = getHead(character)
+
+
+        if not character or not root or not humanoid or not head then
+
+
+            return nil
+
+
+        end
+
+
+        if humanoid.Health <= 0 then return nil end
+
+
+        if find(character, "Basketball") then return nil end
+
+
+        local delta = root.Position - localRoot.Position
+
+
+        local distance = Vector3.new(delta.X, 0, delta.Z).Magnitude
+
+
+        return character, root, humanoid, head, distance
+
+
+    end
+
+
+
+
+
+    function HeadRide:Reset(status)
+
+
+        self.Target = nil
+
+
+        self.TargetDistance = math.huge
+
+
+        self.Mounted = false
+
+
+        self.Engaged = false
+
+
+        self.EngagedTarget = nil
+
+
+        self.Status = status or (self.Enabled and "WAITING FOR TARGET" or "OFF")
+
+
+    end
+
+
+
+
+
+    function HeadRide:SetEnabled(enabled)
+
+
+        self.Enabled = enabled == true
+
+
+        self:Reset(self.Enabled and "WAITING FOR TARGET" or "OFF")
+
+
+    end
+
+
+
+
+
+    function HeadRide:IsEnabled()
+
+
+        return self.Enabled
+
+
+    end
+
+
+
+
+
+    function HeadRide:SetTarget(target)
+
+
+        if target ~= self.Target then
+
+
+            self.Engaged = false
+
+
+            self.Mounted = false
+
+
+            self.EngagedTarget = nil
+
+
+        end
+
+
+        self.Target = target
+
+
+    end
+
+
+
+
+
+    function HeadRide:GetTarget()
+
+
+        return self.Target
+
+
+    end
+
+
+
+
+
+    function HeadRide:IsMounted(localRoot, localHumanoid, targetHead)
+
+
+        if not localRoot or not localHumanoid or not targetHead then
+
+
+            return false
+
+
+        end
+
+
+        local feetOffset
+
+
+        if localHumanoid.RigType == Enum.HumanoidRigType.R6 then
+
+
+            feetOffset = 3.5
+
+
+        else
+
+
+            feetOffset = 3
+
+
+        end
+
+
+        local feet = localRoot.Position - Vector3.new(0, feetOffset, 0)
+
+
+        local difference = feet - targetHead.Position
+
+
+        local horizontal = Vector3.new(difference.X, 0, difference.Z).Magnitude
+
+
+        local vertical = math.abs(difference.Y)
+
+
+        local mounted = vertical < self.Settings.MountVertical
+
+
+            and horizontal < self.Settings.MountHorizontal
+
+
+        return mounted, feetOffset
+
+
+    end
+
+
+
+
+
+    function HeadRide:Step(dt)
+
+
+        if not self.Enabled then return false end
+
+
+
+
+
+        local character = localPlayer.Character
+
+
+        if not character then
+
+
+            self.Status = "WAITING FOR CHARACTER"
+
+
+            return false
+
+
+        end
+
+
+
+
+
+        local localRoot = getRoot(character)
+
+
+        local localHumanoid = getHumanoid(character)
+
+
+        if not localRoot or not localHumanoid then
+
+
+            self.Status = "WAITING FOR CHARACTER"
+
+
+            return false
+
+
+        end
+
+
+
+
+
+        local target = self.Target
+
+
+        if not target then
+
+
+            self.Status = "WAITING FOR TARGET"
+
+
+            return false
+
+
+        end
+
+
+
+
+
+        local targetCharacter, targetRoot, targetHumanoid, targetHead, distance =
+
+
+            self:GetTargetData(target, localRoot)
+
+
+
+
+
+        self.TargetDistance = distance or math.huge
+
+
+
+
+
+        if not targetCharacter then
+
+
+            self:Reset("WAITING FOR TARGET")
+
+
+            return false
+
+
+        end
+
+
+
+
+
+        if self:HasManualInput() then
+
+
+            self.Status = "MANUAL OVERRIDE"
+
+
+            return false
+
+
+        end
+
+
+
+
+
+        local engageRange = math.max(tonumber(self.Settings.EngageRange) or 5, 1.5)
+
+
+        if not self.Engaged then
+
+
+            if distance > engageRange then
+
+
+                self.Status = string.format("OFF-BALL GUARD | %.1f", distance)
+
+
+                return false
+
+
+            end
+
+
+            self.Engaged = true
+
+
+            self.EngagedTarget = target
+
+
+        end
+
+
+
+
+
+        if self.EngagedTarget and self.EngagedTarget ~= target then
+
+
+            self:Reset("NEW TARGET")
+
+
+            return false
+
+
+        end
+
+
+
+
+
+        local mounted, feetOffset = self:IsMounted(localRoot, localHumanoid, targetHead)
+
+
+        self.Mounted = mounted
+
+
+
+
+
+        if mounted then
+
+
+            local desiredPosition = targetHead.Position + Vector3.new(0, feetOffset + 0.2, 0)
+
+
+            local desiredCFrame = CFrame.new(desiredPosition) * localRoot.CFrame.Rotation
+
+
+            local smoothness = math.max(tonumber(self.Settings.MountSmoothness) or 18, 1)
+
+
+            local alpha = 1 - math.exp(-smoothness * math.clamp(dt or 1/60, 0, 0.1))
+
+
+            localRoot.CFrame = localRoot.CFrame:Lerp(desiredCFrame, alpha)
+
+
+            localHumanoid:Move(Vector3.zero, false)
+
+
+            self.Status = "RIDING | " .. target.Name
+
+
+            return true
+
+
+        end
+
+
+
+
+
+        local offset = targetRoot.Position - localRoot.Position
+
+
+        local flatOffset = Vector3.new(offset.X, 0, offset.Z)
+
+
+
+
+
+        if flatOffset.Magnitude < 0.01 then
+
+
+            localHumanoid:Move(Vector3.zero, false)
+
+
+            self.Status = "MOUNTING | " .. target.Name
+
+
+            return true
+
+
+        end
+
+
+
+
+
+        local targetMove = Vector3.new(
+
+
+            targetHumanoid.MoveDirection.X, 0, targetHumanoid.MoveDirection.Z)
+
+
+
+
+
+        local followDistance = math.max(tonumber(self.Settings.FollowDistance) or 7, 0.5)
+
+
+        local autoJump = self.Settings.AutoJump == true
+
+
+        local approachDistance = autoJump and math.min(followDistance, 1.4) or followDistance
+
+
+
+
+
+        local moveDirection
+
+
+        if flatOffset.Magnitude > approachDistance then
+
+
+            moveDirection = flatOffset.Unit
+
+
+            if targetMove.Magnitude > 0.05 then
+
+
+                local blend = targetMove.Unit + flatOffset.Unit
+
+
+                if blend.Magnitude > 0.05 then
+
+
+                    moveDirection = blend.Unit
+
+
+                end
+
+
+            end
+
+
+        elseif targetMove.Magnitude > 0.05 then
+
+
+            moveDirection = targetMove.Unit
+
+
+        else
+
+
+            moveDirection = Vector3.zero
+
+
+        end
+
+
+
+
+
+        localHumanoid:Move(moveDirection, false)
+
+
+
+
+
+        local now = os.clock()
+
+
+        local jumpDistance = math.max(tonumber(self.Settings.JumpDistance) or 2.8, 1)
+
+
+        local jumpCooldown = tonumber(self.Settings.JumpCooldown) or 0.8
+
+
+
+
+
+        if autoJump
+
+
+            and flatOffset.Magnitude <= jumpDistance
+
+
+            and localHumanoid.FloorMaterial ~= Enum.Material.Air
+
+
+            and now - self.LastJumpAt >= jumpCooldown then
+
+
+            self.LastJumpAt = now
+
+
+            localHumanoid.Jump = true
+
+
+            pcall(function()
+
+
+                localHumanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+
+
+            end)
+
+
+            self.Status = "JUMPING TO | " .. target.Name
+
+
+        else
+
+
+            self.Status = "FOLLOWING | " .. target.Name
+
+
+        end
+
+
+
+
+
+        return true
+
+
+    end
+
+
+
+
+
+    function HeadRide:GetStatus()
+
+
+        return self.Status
+
+
+    end
+
+
+
+
+
+    function HeadRide:IsMountedNow()
+
+
+        return self.Mounted
+
+
+    end
+
+
+
+
+
+    function HeadRide:GetTargetDistance()
+
+
+        return self.TargetDistance
+
+
+    end
+
+
+
+
+
+    return HeadRide
+
+
+end)()
+
 local trash = { "Xeno", "Solara", "Nexomia" }
 local execName = identifyexecutor and identifyexecutor() or ""
 
@@ -382,6 +1239,48 @@ getgenv().Settings = {
         Adaptive = true,
         Combo = false,
         PredictiveReach = true,
+    },
+        HeadRide = {
+
+
+        Enabled        = false,
+
+
+        AutoTarget     = true,
+
+
+        ManualTarget   = "None",
+
+        TeamSafety     = true,
+
+       
+        EngageRange    = 5,
+
+
+        FollowDistance = 7,
+
+
+        AutoJump       = true,
+
+
+        JumpDistance   = 2.8,
+
+
+        JumpCooldown   = 0.8,
+
+
+        MountHorizontal = 1.5,
+
+
+        MountVertical   = 1.5,
+
+
+        MountSmoothness = 18,
+
+
+        ManualOverride  = true,
+
+
     },
     FPSCap = { Enabled = false, Value = 60, Original = nil },
     AntiTravelHook = { Enabled = false, HookMode = "NOT INSTALLED", Original = nil, Blocked = 0 },
@@ -596,6 +1495,54 @@ local rankelo = {
 }
 
 local s = getgenv().Settings
+
+local headRideConnection = nil
+
+
+
+
+
+local function pushHeadRideSettings()
+
+
+    if not HeadRide then return end
+
+
+    local hr = s.HeadRide
+
+
+    HeadRide:SetSetting("EngageRange",     hr.EngageRange)
+
+
+    HeadRide:SetSetting("FollowDistance",  hr.FollowDistance)
+
+
+    HeadRide:SetSetting("AutoJump",        hr.AutoJump)
+
+
+    HeadRide:SetSetting("JumpDistance",    hr.JumpDistance)
+
+
+    HeadRide:SetSetting("JumpCooldown",    hr.JumpCooldown)
+
+
+    HeadRide:SetSetting("MountHorizontal", hr.MountHorizontal)
+
+
+    HeadRide:SetSetting("MountVertical",   hr.MountVertical)
+
+
+    HeadRide:SetSetting("MountSmoothness", hr.MountSmoothness)
+
+
+    HeadRide:SetSetting("ManualOverride",  hr.ManualOverride)
+
+
+end
+
+
+getgenv().__aural_pushHeadRide = pushHeadRideSettings
+
 local uiToggles = { magnet = nil, trail = nil, aural = nil }
 local rangeConnection = nil
 local landedConnection = nil
@@ -6092,6 +7039,7 @@ do
         { "Self Pass",        function() return s.SelfPass.Enabled end },
         { "Auto Dime",        function() return s.AutoDime.Enabled end },
         { "Auto Guard",       function() return s.Defending.AutoGuard end },
+        { "Head Ride",        function() return s.HeadRide.Enabled end },
         { "Auto Queue",       function() return s.Automatics.AutoQueue end },
         { "Auto Dunk",        function() return s.Automatics.AutoDunk end },
         { "Ball Magnet",      function() return s.Ball.BallMags end },
@@ -7173,6 +8121,135 @@ do
     MX._Step = step
     J:Connect(RunService.RenderStepped, function(dt) pcall(step, dt) end, "AutoMixHandles")
 end
+
+do
+
+
+    function enableHeadRide()
+
+
+        if headRideConnection or not HeadRide then return end
+
+
+        pushHeadRideSettings()
+
+
+        HeadRide:SetEnabled(true)
+
+
+        headRideConnection = RunService.Heartbeat:Connect(function(dt)
+
+
+            if not s.HeadRide.Enabled then
+
+
+                disableHeadRide()
+
+
+                return
+
+
+            end
+
+
+
+
+
+            pushHeadRideSettings()
+
+
+
+
+
+                        local target = nil
+
+
+            if s.HeadRide.AutoTarget then
+
+
+                local candidate = getClosestDribbler()
+
+
+                if not candidate then
+
+
+                    candidate = getClosestPlayer()
+
+
+                end
+
+
+                if candidate and (not s.HeadRide.TeamSafety or not isTeammatePlayer(candidate)) then
+
+
+                    target = candidate
+
+
+                end
+
+
+            else
+
+
+                local manual = Players:FindFirstChild(s.HeadRide.ManualTarget)
+
+
+                if manual and (not s.HeadRide.TeamSafety or not isTeammatePlayer(manual)) then
+
+
+                    target = manual
+
+
+                end
+
+
+            end
+
+
+            HeadRide:SetTarget(target)
+
+
+
+
+
+            pcall(function() HeadRide:Step(dt) end)
+
+
+        end)
+
+
+    end
+
+
+
+
+
+    function disableHeadRide()
+
+
+        if not HeadRide then return end
+
+
+        HeadRide:SetEnabled(false)
+
+
+        if headRideConnection then
+
+
+            headRideConnection:Disconnect()
+
+
+            headRideConnection = nil
+
+
+        end
+
+
+    end
+
+
+end
+
 do
     local window = zolar:Window({
         Name = "Aural Hub v1.1",
@@ -7596,6 +8673,74 @@ do
     mixSec:Slider({ Name = "Post-move cooldown", Min = 0.08, Max = 0.8, Default = s.AutoMix.PostMoveCooldown, Decimals = 0.02, Flag = "automix_cooldown", Callback = function(v) s.AutoMix.PostMoveCooldown = v end })
     mixSec:Slider({ Name = "Decision hold", Min = 0.04, Max = 0.35, Default = s.AutoMix.DecisionHold, Decimals = 0.02, Flag = "automix_hold", Callback = function(v) s.AutoMix.DecisionHold = v end })
     mixSec:Slider({ Name = "Spin degrees", Min = 90, Max = 1080, Default = s.AutoMix.SpinDegrees, Step = 90, Flag = "automix_degrees", Callback = function(v) s.AutoMix.SpinDegrees = v end })
+
+local headRideSec = defenseSub:Section({ Name = "Head Ride", Side = 2 })
+
+
+
+
+
+headRideSec:Toggle({
+
+
+    Name = "Head Ride",
+
+
+    Default = s.HeadRide.Enabled,
+
+
+    Flag = "headride_toggle",
+
+
+    Callback = function(v)
+
+
+        s.HeadRide.Enabled = v
+
+
+        if v then enableHeadRide() else disableHeadRide() end
+
+
+    end
+
+
+})
+
+
+    headRideSec:Toggle({
+
+
+        Name = "Teammate safety",
+
+
+        Default = s.HeadRide.TeamSafety,
+
+
+        Flag = "headride_teamsafety",
+
+
+        Callback = function(v) s.HeadRide.TeamSafety = v end
+
+
+    })
+
+
+headRideSec:Toggle({
+
+
+    Name = "Manual override (WASD cancels)",
+
+
+    Default = s.HeadRide.ManualOverride,
+
+
+    Flag = "headride_override",
+
+
+    Callback = function(v) s.HeadRide.ManualOverride = v end
+
+
+})
 
     local ankleSec = defenseSub:Section({ Name = "Ankles Reach", Side = 2 })
     ankleSec:Toggle({
@@ -8557,6 +9702,19 @@ J:Add(function()
     pcall(function() RunService:UnbindFromRenderStep("Server Position Predictor") end)
     pcall(resetBallChanger)
     pcall(resetGoalEffect)
+        pcall(function() if HeadRide then HeadRide:SetEnabled(false) end end)
+
+
+    if headRideConnection then
+
+
+        pcall(function() headRideConnection:Disconnect() end)
+
+
+        headRideConnection = nil
+
+
+    end
     pcall(RemoveAura)
     pcall(function() setoob(false) end)
     pcall(stopHideTags)
