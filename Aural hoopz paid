@@ -5527,52 +5527,512 @@ if type(env2.__standalone_silent_aim_unload) == "function" then
     pcall(env2.__standalone_silent_aim_unload)
 end
 do
+
+
     local Gui = Instance.new("ScreenGui")
+
+
     Gui.Name = "AuralMobileGui"
+
+
     Gui.ResetOnSpawn = false
+
+
+    Gui.IgnoreGuiInset = true
+
+
+    Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+
     Gui.Parent = gethui()
 
+
+
+
+
+    local Container = Instance.new("Frame")
+
+
+    Container.Name = "GuardContainer"
+
+
+    Container.Size = UDim2.fromOffset(74, 74)
+
+
+    Container.Position = UDim2.new(0.82, 0, 0.55, 0)
+
+
+
+
+
+    local saved = getgenv().__aural_guard_pos
+
+
+    if saved then
+
+
+        Container.Position = UDim2.new(saved[1], saved[2], saved[3], saved[4])
+
+
+    end
+
+
+
+
+
+    Container.BackgroundTransparency = 1
+
+
+    Container.Active = false
+
+
+    Container.Parent = Gui
+
+
+
+
+
     local Button = Instance.new("TextButton")
+
+
     Button.Name = "AutoGuard"
-    Button.Size = UDim2.new(0, 55, 0, 55)
-    Button.Position = UDim2.new(0.8, 0, 0.5, 0)
-    Button.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    Button.Text = "Guard"
-    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Button.TextSize = 18
-    Button.Font = Enum.Font.GothamBold
-    Button.AutoButtonColor = true
+
+
+    Button.Size = UDim2.fromScale(1, 1)
+
+
+    Button.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
+
+
+    Button.BackgroundTransparency = 0.15
+
+
+    Button.Text = ""
+
+
+    Button.AutoButtonColor = false
+
+
     Button.Visible = s.Defending.AutoGuardButton or false
-    Button.Parent = Gui
+
+
+    Button.Parent = Container
+
+
+
+
+
     Instance.new("UICorner", Button).CornerRadius = UDim.new(1, 0)
+
+
+
+
+
+    local Stroke = Instance.new("UIStroke")
+
+
+    Stroke.Color = Color3.fromRGB(70, 70, 78)
+
+
+    Stroke.Thickness = 2
+
+
+    Stroke.Transparency = 0.2
+
+
+    Stroke.Parent = Button
+
+
+
+
+
+    local IconLbl = Instance.new("ImageLabel")
+
+
+    IconLbl.Name = "Icon"
+
+
+    IconLbl.Size = UDim2.fromScale(0.55, 0.55)
+
+
+    IconLbl.Position = UDim2.fromScale(0.5, 0.42)
+
+
+    IconLbl.AnchorPoint = Vector2.new(0.5, 0.5)
+
+
+    IconLbl.BackgroundTransparency = 1
+
+
+    IconLbl.Image = "rbxassetid://6031090990"
+
+
+    IconLbl.ImageColor3 = Color3.fromRGB(200, 200, 205)
+
+
+    IconLbl.Parent = Button
+
+
+
+
+
+    local StatusLabel = Instance.new("TextLabel")
+
+
+    StatusLabel.Name = "Status"
+
+
+    StatusLabel.Size = UDim2.new(1, 0, 0, 16)
+
+
+    StatusLabel.Position = UDim2.new(0, 0, 1, -18)
+
+
+    StatusLabel.BackgroundTransparency = 1
+
+
+    StatusLabel.Font = Enum.Font.GothamBold
+
+
+    StatusLabel.TextSize = 11
+
+
+    StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 158)
+
+
+    StatusLabel.Text = "OFF"
+
+
+    StatusLabel.Parent = Button
+
+
+
+
+
+    local function setVisualState()
+
+
+        local on = s.Defending.AutoGuard
+
+
+        local mode = tostring(s.Defending.AutoGuardMode or "Prediction")
+
+
+        local short = mode == "Blatant" and "BLAT"
+
+
+                   or (mode == "Legit" and "LEGIT" or "PRED")
+
+
+
+
+
+        if on then
+
+
+            Button.BackgroundColor3 = Color3.fromRGB(0, 170, 85)
+
+
+            Button.BackgroundTransparency = 0.05
+
+
+            Stroke.Color = Color3.fromRGB(80, 255, 160)
+
+
+            Stroke.Transparency = 0.35
+
+
+            IconLbl.ImageColor3 = Color3.fromRGB(255, 255, 255)
+
+
+            StatusLabel.Text = short
+
+
+            StatusLabel.TextColor3 = Color3.fromRGB(220, 255, 235)
+
+
+        else
+
+
+            Button.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
+
+
+            Button.BackgroundTransparency = 0.15
+
+
+            Stroke.Color = Color3.fromRGB(70, 70, 78)
+
+
+            Stroke.Transparency = 0.2
+
+
+            IconLbl.ImageColor3 = Color3.fromRGB(160, 160, 168)
+
+
+            StatusLabel.Text = "OFF"
+
+
+            StatusLabel.TextColor3 = Color3.fromRGB(140, 140, 148)
+
+
+        end
+
+
+    end
+
+
+
+
+
+    setVisualState()
+
+
+
+
+
+    local lastKey = nil
+
+
+    task.spawn(function()
+
+
+        while Gui.Parent do
+
+
+            task.wait(0.2)
+
+
+            local key = tostring(s.Defending.AutoGuard)
+
+
+                     .. "|" .. tostring(s.Defending.AutoGuardMode)
+
+
+                     .. "|" .. tostring(s.Defending.AutoGuardButton)
+
+
+            if key ~= lastKey then
+
+
+                lastKey = key
+
+
+                Button.Visible = s.Defending.AutoGuardButton or false
+
+
+                setVisualState()
+
+
+            end
+
+
+        end
+
+
+    end)
+
+
+
+
+
+    -- ---------- INPUT (no haptic, no drift) ----------
+
+
+    local activeInput = nil
+
 
     local dragging, dragStart, startPos, moved = false, nil, nil, false
 
+
+    local DRAG_THRESHOLD = UserInputService.TouchEnabled and 14 or 6
+
+
+    local lastToggleAt = 0
+
+
+    local TOGGLE_COOLDOWN = 0.25
+
+
+
+
+
     Button.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            moved = false
-            dragStart = input.Position
-            startPos = Button.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    if not moved then
-                        s.Defending.AutoGuard = not s.Defending.AutoGuard
-                        Button.BackgroundColor3 = s.Defending.AutoGuard and Color3.fromRGB(0, 170, 85) or Color3.fromRGB(35, 35, 35)
-                    end
-                end
-            end)
-        end
+
+
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1
+
+
+           and input.UserInputType ~= Enum.UserInputType.Touch then return end
+
+
+        if activeInput then return end
+
+
+
+
+
+        activeInput = input
+
+
+        dragging, moved = true, false
+
+
+        dragStart = input.Position
+
+
+        startPos = Container.Position
+
+
     end)
 
+
+
+
+
     UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            if delta.Magnitude > 5 then moved = true end
-            Button.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
+
+
+        if not dragging or input ~= activeInput then return end
+
+
+        if input.UserInputType ~= Enum.UserInputType.Touch
+
+
+           and input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+
+
+
+
+
+        local delta = input.Position - dragStart
+
+
+        if delta.Magnitude > DRAG_THRESHOLD then moved = true end
+
+
+
+
+
+        Container.Position = UDim2.new(
+
+
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+
+
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+
+
+        )
+
+
     end)
+
+
+
+
+
+    UserInputService.InputEnded:Connect(function(input)
+
+
+        if input ~= activeInput then return end
+
+
+        dragging = false
+
+
+        activeInput = nil
+
+
+
+
+
+        if not moved then
+
+
+            local now = os.clock()
+
+
+            if now - lastToggleAt >= TOGGLE_COOLDOWN then
+
+
+                lastToggleAt = now
+
+
+                s.Defending.AutoGuard = not s.Defending.AutoGuard
+
+
+                setVisualState()
+
+
+
+
+
+                local popTween = TweenService:Create(
+
+
+                    Button,
+
+
+                    TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+
+
+                    { Size = UDim2.fromScale(1.12, 1.12) }
+
+
+                )
+
+
+                popTween:Play()
+
+
+                popTween.Completed:Connect(function()
+
+
+                    TweenService:Create(
+
+
+                        Button,
+
+
+                        TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+
+
+                        { Size = UDim2.fromScale(1, 1) }
+
+
+                    ):Play()
+
+
+                end)
+
+
+            end
+
+
+        else
+
+
+            -- Save raw UDim2, don't round-trip through AbsolutePosition
+
+
+            getgenv().__aural_guard_pos = {
+
+
+                Container.Position.X.Scale, Container.Position.X.Offset,
+
+
+                Container.Position.Y.Scale, Container.Position.Y.Offset,
+
+
+            }
+
+
+        end
+
+
+    end)
+
+
 end
 
 local goals = {}
@@ -8521,7 +8981,7 @@ do
         Callback = function(v)
             s.Defending.AutoGuardButton = v
             local gui = gethui():FindFirstChild("AuralMobileGui")
-            local button = gui and gui:FindFirstChild("AutoGuard")
+            local button = gui and gui:FindFirstChild("AutoGuard", true)
             if button then
                 button.Visible = v
                 button.BackgroundColor3 = s.Defending.AutoGuard
