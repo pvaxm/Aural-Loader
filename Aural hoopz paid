@@ -1108,7 +1108,7 @@ pcall(function()
     local fn = loadstring(body)
     if fn then zolar = fn() end
 end)
-zolar.Version = "3.5.5"
+zolar.Version = "3.6"
 
 if zolar and type(zolar.Notification) == "function" then
     for _, exec in ipairs(trash) do
@@ -1151,7 +1151,9 @@ getgenv().Settings = {
         Mode = "Aural", AuralKeybind = Enum.KeyCode.X, HumanizeAim = false, HumanizeStrength = 0, MissChance = 0, AuralEnabled = false, ArmInMatch = false, FatalEnabled = false,
         ShotDelay = 0.32, ShotYAxis = 0, RandomizeShotDelay = false,
         ShotDelayMin = 0.25, ShotDelayMax = 0.38, GreenChance = 0,
-        ThreesOnly = false, AimAssist = false, EBLHop = false
+        ThreesOnly = false, AimAssist = false, EBLHop = false,
+        ArcTableAuto = false, ArcTablePref = "Closest to 85",
+        AuralTrigger = "Jump"
     },
     SelfPass = {
         Enabled = false, Keybind = "T", Power = 85, Distance = 50, Angle = 170
@@ -1205,6 +1207,7 @@ getgenv().Settings = {
     Goal = { Enabled = false, SelectedEffect = "LightRay", CurrentEffect = "LightRay" },
     BallChanger = { Enabled = false, SelectedBall = "ForceField", CurrentBall = "ForceField" },
     Aura = { Enabled = false, SelectedAura = "None", CurrentAura = nil },
+    Watch = { Court = "Auto Live Match", Mode = "2K CAM" },
     TrailChanger = { Enabled = false, SelectedTrail = "None", CurrentTrail = "None" },
     AvatarChanger = {
         SelectedPlayer = "None",
@@ -1246,10 +1249,14 @@ getgenv().Settings = {
         Enabled        = false,
 
 
+        OnlyArmInMatch   = false,
+
+
         AutoTarget     = true,
 
 
         ManualTarget   = "None",
+
 
         TeamSafety     = true,
 
@@ -2253,6 +2260,645 @@ do
     end
 end
 
+-- ===== Arc table + auto power (ported from Golden Eagle BuiltInArcTable) =====
+-- Each row is { flatDistanceToRim, arcOffsetAboveRim, power }.
+-- The LAST value of every row is the power. Auto power picks a power whose
+-- calibrated distance range covers the shot, then reads the arc offset for
+-- that exact power (linear interpolation between neighbouring rows).
+local BuiltInArcTable = {
+{92.49, 44.91, 100},
+{92.37, 46.73, 100},
+{91.99, 56.25, 100},
+{91.12, 62.34, 100},
+{89.87, 72.88, 100},
+{89.67, 54.51, 100},
+{88.62, 78.43, 100},
+{87.59, 83.46, 100},
+{87.37, 82.28, 100},
+{86.12, 86.10, 100},
+{84.87, 89.89, 100},
+{83.62, 93.66, 100},
+{82.37, 97.40, 100},
+{81.12, 101.12, 100},
+{79.87, 104.83, 100},
+{78.62, 108.53, 100},
+{78.00, 110.36, 100},
+{76.00, 116.32, 100},
+{74.00, 121.93, 100},
+{72.00, 126.15, 100},
+{70.00, 130.32, 100},
+{68.00, 133.79, 100},
+{66.00, 137.07, 100},
+{64.00, 139.93, 100},
+{62.00, 142.55, 100},
+{60.00, 144.98, 100},
+{58.00, 147.24, 100},
+{56.00, 149.41, 100},
+{54.00, 151.51, 100},
+{52.00, 153.51, 100},
+{50.00, 155.42, 100},
+{48.00, 157.20, 100},
+{46.00, 158.96, 100},
+{44.00, 160.68, 100},
+{42.00, 162.37, 100},
+{40.00, 163.97, 100},
+{38.00, 165.46, 100},
+{36.00, 166.82, 100},
+{34.00, 168.04, 100},
+{32.00, 169.03, 100},
+{30.00, 170.05, 100},
+{28.00, 171.00, 100},
+{26.00, 171.89, 100},
+{24.00, 172.58, 100},
+{22.00, 172.81, 100},
+{20.00, 172.48, 100},
+{18.00, 170.85, 100},
+{16.00, 169.45, 100},
+{14.00, 168.36, 100},
+{12.00, 167.26, 100},
+{10.00, 166.19, 100},
+{8.00, 165.11, 100},
+{6.00, 164.00, 100},
+{4.00, 163.26, 100},
+
+{84.75, 76.33, 95},
+{84.54, 76.85, 95},
+{83.29, 79.90, 95},
+{82.04, 82.94, 95},
+{80.79, 85.97, 95},
+{80.56, 86.36, 95},
+{79.54, 88.99, 95},
+{78.29, 92.00, 95},
+{77.27, 95.04, 95},
+{77.04, 95.05, 95},
+{75.79, 98.09, 95},
+{75.67, 97.94, 95},
+{74.54, 100.70, 95},
+{73.87, 101.99, 95},
+{73.29, 102.85, 95},
+{72.04, 104.99, 95},
+{72.00, 105.05, 95},
+{71.86, 105.47, 95},
+{70.15, 107.78, 95},
+{70.00, 108.26, 95},
+{68.00, 111.08, 95},
+{66.00, 113.60, 95},
+{64.00, 115.88, 95},
+{62.00, 117.96, 95},
+{60.00, 119.89, 95},
+{58.00, 121.73, 95},
+{56.00, 123.47, 95},
+{54.00, 125.17, 95},
+{52.00, 126.78, 95},
+{50.00, 128.30, 95},
+{48.00, 129.75, 95},
+{46.00, 131.18, 95},
+{44.00, 132.58, 95},
+{42.00, 133.94, 95},
+{40.00, 135.22, 95},
+{38.00, 136.42, 95},
+{36.00, 137.53, 95},
+{34.00, 138.46, 95},
+{32.00, 139.28, 95},
+{30.00, 140.10, 95},
+{28.00, 140.87, 95},
+{26.00, 141.58, 95},
+{24.00, 142.12, 95},
+{22.00, 142.24, 95},
+{20.00, 141.97, 95},
+{18.00, 140.49, 95},
+{16.00, 139.42, 95},
+{14.00, 138.53, 95},
+{12.00, 137.64, 95},
+{10.00, 136.76, 95},
+{8.00, 135.88, 95},
+{6.00, 134.98, 95},
+{4.00, 134.39, 95},
+
+{79.75, 38.47, 90},
+{79.04, 45.73, 90},
+{77.79, 54.55, 90},
+{76.54, 58.77, 90},
+{76.24, 68.99, 90},
+{75.29, 62.04, 90},
+{74.04, 65.29, 90},
+{72.79, 68.50, 90},
+{71.54, 71.70, 90},
+{70.29, 74.88, 90},
+{69.04, 78.04, 90},
+{68.30, 78.25, 90},
+{67.79, 81.20, 90},
+{66.00, 85.74, 90},
+{64.90, 83.46, 90},
+{64.00, 90.44, 90},
+{62.00, 94.04, 90},
+{60.00, 97.39, 90},
+{58.00, 100.31, 90},
+{56.00, 102.85, 90},
+{54.00, 105.15, 90},
+{52.00, 107.23, 90},
+{50.31, 111.84, 90},
+{50.00, 109.15, 90},
+{48.00, 110.98, 90},
+{46.00, 112.74, 90},
+{44.00, 114.41, 90},
+{42.00, 115.95, 90},
+{40.00, 117.46, 90},
+{38.56, 119.94, 90},
+{38.00, 118.93, 90},
+{36.00, 120.36, 90},
+{34.00, 121.68, 90},
+{32.00, 122.89, 90},
+{30.00, 124.00, 90},
+{29.36, 122.84, 90},
+{28.00, 124.88, 90},
+{26.00, 125.75, 90},
+{24.00, 126.56, 90},
+{23.99, 126.31, 90},
+{22.00, 127.29, 90},
+{20.00, 127.71, 90},
+{18.73, 126.89, 90},
+{18.00, 127.62, 90},
+{16.43, 127.47, 90},
+{16.00, 126.70, 90},
+{14.00, 125.36, 90},
+{12.00, 124.43, 90},
+{10.00, 123.49, 90},
+{8.00, 122.58, 90},
+{6.00, 121.65, 90},
+{4.00, 120.72, 90},
+
+{73.00, 51.14, 85},
+{72.96, 51.14, 85},
+{72.78, 51.14, 85},
+{72.43, 51.14, 85},
+{71.26, 53.14, 85},
+{70.60, 59.55, 85},
+{70.94, 61.16, 85},
+{69.99, 63.16, 85},
+{68.31, 67.97, 85},
+{66.75, 71.58, 85},
+{65.55, 76.39, 85},
+{65.19, 78.33, 85},
+{63.55, 81.18, 85},
+{62.62, 83.67, 85},
+{61.11, 85.10, 85},
+{59.64, 87.24, 85},
+{58.36, 91.16, 85},
+{57.44, 92.94, 85},
+{56.02, 93.65, 85},
+{55.10, 96.15, 85},
+{54.12, 96.86, 85},
+{52.37, 97.93, 85},
+{51.16, 100.07, 85},
+{50.01, 100.07, 85},
+{49.21, 102.56, 85},
+{47.24, 103.99, 85},
+{46.24, 104.70, 85},
+{44.71, 106.48, 85},
+{43.95, 105.06, 85},
+{42.65, 106.84, 85},
+{41.73, 106.84, 85},
+{40.95, 107.55, 85},
+{39.03, 109.33, 85},
+{38.19, 111.47, 85},
+{36.93, 112.54, 85},
+{35.66, 112.54, 85},
+{33.76, 114.32, 85},
+{32.62, 115.39, 85},
+{31.15, 115.39, 85},
+{30.04, 115.75, 85},
+{29.20, 116.82, 85},
+{27.97, 116.82, 85},
+{26.42, 118.95, 85},
+{24.78, 119.67, 85},
+{23.37, 119.67, 85},
+{22.40, 118.95, 85},
+{22.40, 119.31, 85},
+{21.62, 120.02, 85},
+{20.43, 120.02, 85},
+{19.54, 120.38, 85},
+{18.02, 121.09, 85},
+{16.88, 121.09, 85},
+{15.98, 121.09, 85},
+{14.31, 121.45, 85},
+{9.19, 122.52, 85},
+{9.19, 122.16, 85},
+{7.63, 120.02, 85},
+{6.90, 118.24, 85},
+{6.90, 112.90, 85},
+{5.98, 111.47, 85},
+{5.10, 112.18, 85},
+{4.50, 112.90, 85},
+{4.16, 113.25, 85},
+{3.87, 114.32, 85},
+{3.85, 114.32, 85},
+
+{66.56, 45.41, 80},
+{64.79, 56.24, 80},
+{62.71, 62.25, 80},
+{61.56, 62.25, 80},
+{59.83, 67.46, 80},
+{58.43, 70.27, 80},
+{57.26, 73.47, 80},
+{56.22, 75.88, 80},
+{55.06, 76.68, 80},
+{53.42, 78.69, 80},
+{51.12, 84.30, 80},
+{49.47, 84.30, 80},
+{48.07, 85.10, 80},
+{47.51, 86.30, 80},
+{46.21, 87.51, 80},
+{45.02, 89.51, 80},
+{43.86, 89.51, 80},
+{42.72, 89.51, 80},
+{41.61, 90.71, 80},
+{40.44, 92.72, 80},
+{39.22, 97.13, 80},
+{37.34, 97.13, 80},
+{36.30, 97.53, 80},
+{34.92, 98.73, 80},
+{33.94, 99.13, 80},
+{31.96, 101.14, 80},
+{29.69, 101.54, 80},
+{27.50, 103.94, 80},
+{26.06, 107.15, 80},
+{24.39, 107.15, 80},
+{22.79, 107.55, 80},
+{20.94, 108.75, 80},
+{19.29, 108.75, 80},
+{18.37, 106.35, 80},
+{16.67, 106.35, 80},
+{15.38, 106.35, 80},
+{14.10, 106.35, 80},
+{13.24, 106.35, 80},
+{11.95, 106.35, 80},
+{10.88, 106.35, 80},
+{9.80, 106.35, 80},
+{7.05, 106.35, 80},
+{5.53, 102.34, 80},
+{5.53, 102.34, 80},
+{4.88, 102.34, 80},
+{4.88, 102.74, 80},
+{4.40, 99.13, 80},
+{4.15, 101.54, 80},
+{3.90, 102.34, 80},
+
+{60.88, 40.41, 75},
+{59.46, 40.41, 75},
+{58.14, 51.39, 75},
+{58.14, 51.39, 75},
+{56.92, 55.18, 75},
+{55.40, 62.75, 75},
+{53.36, 62.75, 75},
+{52.27, 65.78, 75},
+{50.88, 66.92, 75},
+{49.27, 69.57, 75},
+{47.52, 73.35, 75},
+{46.10, 74.87, 75},
+{44.30, 77.14, 75},
+{44.30, 76.00, 75},
+{42.39, 77.90, 75},
+{41.05, 79.41, 75},
+{39.24, 80.92, 75},
+{37.19, 82.82, 75},
+{35.20, 85.85, 75},
+{33.26, 86.98, 75},
+{31.10, 86.98, 75},
+{31.10, 88.12, 75},
+{29.04, 88.50, 75},
+{29.04, 87.74, 75},
+{27.18, 91.90, 75},
+{25.31, 93.04, 75},
+{25.31, 93.80, 75},
+{23.47, 96.83, 75},
+{21.03, 98.34, 75},
+{18.98, 98.34, 75},
+{17.05, 99.48, 75},
+{15.08, 94.93, 75},
+{13.85, 98.34, 75},
+{12.46, 98.34, 75},
+{10.79, 98.34, 75},
+{8.82, 98.34, 75},
+{6.20, 98.34, 75},
+{5.78, 98.34, 75},
+{5.85, 99.10, 75},
+{5.37, 100.23, 75},
+{4.45, 102.13, 75},
+{4.50, 103.64, 75},
+{4.09, 103.26, 75},
+{3.70, 104.40, 75},
+
+{3.91, 87.24, 70},
+{6.59, 85.46, 70},
+{8.56, 85.46, 70},
+{11.28, 85.46, 70},
+{13.20, 85.46, 70},
+{15.86, 85.46, 70},
+{18.14, 85.46, 70},
+{20.16, 84.03, 70},
+{22.71, 81.54, 70},
+{24.96, 81.54, 70},
+{27.01, 81.54, 70},
+{28.98, 79.04, 70},
+{31.38, 77.97, 70},
+{34.11, 77.26, 70},
+{36.01, 71.56, 70},
+{37.99, 71.56, 70},
+{40.39, 71.56, 70},
+{42.76, 68.71, 70},
+{44.12, 65.14, 70},
+{46.86, 59.44, 70},
+{48.09, 56.59, 70},
+{49.68, 53.39, 70},
+{50.42, 54.81, 70},
+{52.12, 50.00, 70},
+{52.72, 50.00, 70},
+{53.38, 50.00, 70},
+
+{49.53, 35.87, 65},
+{47.06, 43.44, 65},
+{44.91, 48.36, 65},
+{44.02, 50.63, 65},
+{42.09, 51.39, 65},
+{40.00, 54.80, 65},
+{38.32, 61.99, 65},
+{35.96, 63.13, 65},
+{33.82, 65.02, 65},
+{31.04, 65.02, 65},
+{28.97, 69.19, 65},
+{26.69, 66.16, 65},
+{24.39, 70.32, 65},
+{21.94, 71.46, 65},
+{21.92, 71.46, 65},
+{22.11, 73.35, 65},
+{19.07, 70.70, 65},
+{17.24, 77.90, 65},
+{17.24, 75.24, 65},
+{14.76, 75.24, 65},
+{13.75, 78.27, 65},
+{11.70, 84.33, 65},
+{9.66, 80.17, 65},
+{9.66, 79.03, 65},
+{7.46, 77.90, 65},
+{6.24, 79.03, 65},
+{5.82, 79.03, 65},
+{5.27, 79.03, 65},
+{4.33, 79.03, 65},
+{4.65, 76.00, 65},
+{4.98, 86.98, 65},
+{3.86, 86.98, 65},
+
+{44.27, 30.00, 60},
+{41.79, 38.52, 60},
+{43.95, 34.35, 60},
+{40.84, 39.28, 60},
+{38.57, 48.36, 60},
+{35.94, 48.36, 60},
+{34.48, 49.50, 60},
+{30.42, 54.04, 60},
+{28.71, 58.96, 60},
+{28.71, 58.96, 60},
+{24.55, 64.64, 60},
+{22.83, 64.27, 60},
+{20.70, 62.37, 60},
+{19.07, 61.24, 60},
+{19.07, 63.89, 60},
+{17.50, 63.89, 60},
+{16.75, 65.40, 60},
+{14.00, 65.40, 60},
+{13.67, 65.02, 60},
+{12.81, 65.02, 60},
+{10.28, 67.29, 60},
+{8.16, 67.67, 60},
+{7.82, 66.54, 60},
+{5.86, 66.92, 60},
+{4.24, 71.84, 60},
+{4.24, 74.11, 60},
+{4.17, 67.29, 60},
+{4.17, 68.81, 60},
+
+{37.12, 30.23, 55},
+{35.22, 37.58, 55},
+{33.83, 41.50, 55},
+{32.77, 41.50, 55},
+{31.77, 43.46, 55},
+{29.78, 43.46, 55},
+{29.07, 47.38, 55},
+{26.96, 47.38, 55},
+{25.17, 50.32, 55},
+{24.31, 52.77, 55},
+{22.89, 54.24, 55},
+{22.10, 50.81, 55},
+{20.17, 50.81, 55},
+{19.04, 54.24, 55},
+{17.60, 54.24, 55},
+{15.82, 57.18, 55},
+{14.56, 59.63, 55},
+{13.35, 60.61, 55},
+{12.33, 60.61, 55},
+{11.29, 60.61, 55},
+{10.03, 62.08, 55},
+{9.35, 64.04, 55},
+{8.16, 66.49, 55},
+{6.75, 69.43, 55},
+{5.71, 67.96, 55},
+{4.71, 67.96, 55},
+{4.61, 67.96, 55},
+{4.46, 67.96, 55},
+
+{34.15, 19.45, 50},
+{33.04, 24.84, 50},
+{32.28, 25.82, 50},
+{31.43, 32.19, 50},
+{30.28, 32.19, 50},
+{29.04, 35.13, 50},
+{28.21, 39.05, 50},
+{28.21, 40.03, 50},
+{27.60, 40.03, 50},
+{24.46, 42.48, 50},
+{22.85, 42.48, 50},
+{22.25, 42.48, 50},
+{21.12, 45.42, 50},
+{19.76, 48.36, 50},
+{18.37, 48.36, 50},
+{15.86, 50.81, 50},
+{14.67, 50.81, 50},
+{12.87, 53.26, 50},
+{9.95, 53.26, 50},
+{8.09, 53.26, 50},
+{7.31, 53.26, 50},
+{7.02, 54.73, 50},
+{7.22, 54.73, 50},
+{4.64, 56.69, 50},
+{4.54, 56.69, 50},
+{3.96, 61.10, 50},
+
+{27.30, 28.27, 45},
+{26.26, 30.23, 45},
+{25.44, 30.23, 45},
+{24.31, 30.23, 45},
+{23.25, 32.19, 45},
+{21.98, 35.13, 45},
+{21.22, 35.13, 45},
+{19.66, 38.07, 45},
+{16.96, 39.05, 45},
+{13.14, 39.05, 45},
+{11.67, 42.48, 45},
+{9.62, 47.38, 45},
+{9.62, 44.93, 45},
+{5.76, 45.42, 45},
+{4.34, 45.42, 45},
+{4.27, 45.42, 45},
+
+{24.46, 5.00, 40},
+{22.79, 22.39, 40},
+{21.52, 26.80, 40},
+{20.86, 29.25, 40},
+{18.93, 30.23, 40},
+{17.09, 31.70, 40},
+{11.50, 32.68, 40},
+{9.86, 37.58, 40},
+{9.18, 39.54, 40},
+{7.89, 41.01, 40},
+{6.79, 32.68, 40},
+{5.74, 44.44, 40},
+{5.10, 37.58, 40},
+{4.18, 37.58, 40},
+{4.02, 37.58, 40},
+
+{21.69, 8.18, 35},
+{19.66, 17.98, 35},
+{18.12, 21.41, 35},
+{18.12, 21.90, 35},
+{17.00, 24.35, 35},
+{14.47, 26.80, 35},
+{12.80, 28.76, 35},
+{11.13, 30.23, 35},
+{11.50, 29.25, 35},
+{10.48, 30.23, 35},
+{9.67, 30.72, 35},
+{8.93, 31.21, 35},
+{7.85, 31.21, 35},
+{6.53, 33.66, 35},
+{5.98, 35.13, 35},
+{4.24, 38.07, 35},
+
+{4.31, 21.41, 30},
+{4.24, 21.41, 30},
+{4.37, 21.41, 30},
+{5.01, 21.41, 30},
+{6.15, 21.41, 30},
+{7.40, 21.41, 30},
+{9.02, 22.39, 30},
+{10.61, 20.92, 30},
+{11.24, 20.92, 30},
+{11.75, 20.43, 30},
+{12.78, 19.94, 30},
+{15.33, 16.51, 30},
+
+{15.35, 5.00, 25},
+{13.94, 10.14, 25},
+{11.93, 13.08, 25},
+{9.25, 15.53, 25},
+{6.32, 18.47, 25},
+{4.57, 17.49, 25},
+{4.31, 21.90, 25},
+
+{11.97, 5.00, 20},
+{10.14, 7.20, 20},
+{9.53, 7.20, 20},
+{7.81, 9.16, 20},
+{7.81, 10.14, 20},
+{6.65, 14.06, 20},
+{4.77, 14.06, 20},
+{4.41, 14.06, 20},
+
+{6.22, 5.24, 15},
+{6.77, 5.73, 15},
+{6.86, 5.00, 15},
+{7.97, 5.00, 15},
+
+{5.51, 5.00, 10},
+{5.60, 5.00, 10},
+{6.20, 5.00, 10},
+}
+
+do
+    local byPower, minRange, maxRange = {}, {}, {}
+    do
+        local grouped = {}
+        for _, e in ipairs(BuiltInArcTable) do
+            local d, a, p = e[1], e[2], e[3]
+            grouped[p] = grouped[p] or {}
+            local bucket = grouped[p]
+            -- rows sharing an identical distance are averaged so lookups stay deterministic
+            local hit
+            for _, r in ipairs(bucket) do if r[1] == d then hit = r break end end
+            if hit then hit[2] = (hit[2] * hit[3] + a) / (hit[3] + 1); hit[3] = hit[3] + 1
+            else bucket[#bucket + 1] = { d, a, 1 } end
+            if not minRange[p] or d < minRange[p] then minRange[p] = d end
+            if not maxRange[p] or d > maxRange[p] then maxRange[p] = d end
+        end
+        for p, bucket in pairs(grouped) do
+            table.sort(bucket, function(x, y) return x[1] < y[1] end)
+            byPower[p] = bucket
+        end
+    end
+
+    -- interpolated arc offset for an exact power, or nil if that power does not cover dist
+    function tableArcAt(dist, power)
+        local list = byPower[power]
+        if not list or dist < minRange[power] or dist > maxRange[power] then return nil end
+        local below, above
+        for i = 1, #list do
+            local e = list[i]
+            if e[1] <= dist then below = e end
+            if e[1] >= dist and not above then above = e end
+        end
+        if below and above then
+            local span = above[1] - below[1]
+            if math.abs(span) < 0.0001 then return below[2] end
+            return below[2] + (above[2] - below[2]) * ((dist - below[1]) / span)
+        end
+        local e = below or above
+        return e and e[2] or nil
+    end
+
+    -- auto power: every power whose [min,max] distance range contains dist is a candidate
+    function pickTablePower(dist, pref, maxPower)
+        local best
+        for p, hi in pairs(maxRange) do
+            if p <= maxPower and dist >= minRange[p] and dist <= hi then
+                if best == nil
+                    or (pref == "Highest" and p > best)
+                    or (pref == "Lowest" and p < best)
+                    or (pref ~= "Highest" and pref ~= "Lowest" and math.abs(p - 85) < math.abs(best - 85)) then
+                    best = p
+                end
+            end
+        end
+        return best
+    end
+
+    -- returns arcOffset, power  (or nil when disabled / on mobile / table does not cover dist)
+    function getTableShot(flatDist)
+        local st = getgenv().Settings and getgenv().Settings.Shooting
+        if not (st and st.ArcTableAuto) or type(flatDist) ~= "number" then return nil end
+        if UserInputService.TouchEnabled then return nil end -- table was calibrated for mouse aim
+        local power = pickTablePower(flatDist, st.ArcTablePref or "Closest to 85", 95)
+        if not power then return nil end
+        local arc = tableArcAt(flatDist, power)
+        if not arc then return nil end
+        return arc, power
+    end
+
+    function flatDistTo(rim, fromPos)
+        local d = rim.Position - fromPos
+        return Vector3.new(d.X, 0, d.Z).Magnitude
+    end
+end
+
 local object_values = {}
 
 do
@@ -2321,6 +2967,7 @@ end
 local predictionenabled = false
 local posehistory = {}
 local localcharacterclone = nil
+local lastCloneSanitize = 0
 local pingdivisionfactor = 500
 
 do
@@ -2349,13 +2996,21 @@ do
         if not character or not hrp then return end
         local currenttime = tick()
         local bodypartscframes = {}
-        for _, descendant in character:GetDescendants() do
+        -- only direct child parts are ever read back (see updateclonepose), so GetChildren is enough
+        for _, descendant in character:GetChildren() do
             if not descendant:IsA("BasePart") or descendant == hrp then continue end
             bodypartscframes[descendant.Name] = hrp.CFrame:ToObjectSpace(descendant.CFrame)
         end
         table.insert(posehistory, { time = currenttime, pivot = character:GetPivot(), bodypartscframes = bodypartscframes })
-        while #posehistory > 0 and (currenttime - posehistory[1].time) > (1 / deltatime) do
-            table.remove(posehistory, 1)
+        -- history only needs to cover the ping delay (<= ~2s). It used to keep 1/deltatime
+        -- seconds (~60s of frames) and shift the whole array every frame.
+        local keepFor = 2.5
+        local drop = 0
+        while drop < #posehistory and (currenttime - posehistory[drop + 1].time) > keepFor do drop += 1 end
+        if drop > 0 then
+            local n = #posehistory
+            table.move(posehistory, drop + 1, n, 1)
+            for i = n - drop + 1, n do posehistory[i] = nil end
         end
     end
 
@@ -2396,7 +3051,8 @@ RunService:BindToRenderStep("Server Position Predictor", 1, function(deltatime)
     if not predictionenabled or not s.Misc.ServerPosition then return end
     recordpose(deltatime)
     updateclonepose()
-    if localcharacterclone then
+    if localcharacterclone and os.clock() - (lastCloneSanitize or 0) >= 0.25 then
+        lastCloneSanitize = os.clock()
         localcharacterclone.Humanoid.DisplayDistanceType = "None"
         localcharacterclone.Humanoid.PlatformStand = true
         for _, animation in localcharacterclone.Humanoid:GetPlayingAnimationTracks() do animation:Stop() end
@@ -3672,13 +4328,22 @@ end
 
 do
     local st = { Armed=false, ArmedAt=0, BallSeen=false, EndsAt=0, LastJumpAt=0, LastMatch=false }
+    local looseBalls, looseBallsAt = {}, 0
     local function findLoose()
         local char = LocalPlayer.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         if not root then return nil, math.huge end
         local best, bestD = nil, math.huge
-        for _, inst in ipairs(workspace:GetDescendants()) do
-            if inst:IsA("BasePart") and inst.Name == "Ball" and not inst.Anchored then
+        -- full workspace scan at most 2x/second (this runs every Heartbeat while armed)
+        if os.clock() - looseBallsAt > 0.5 then
+            looseBallsAt = os.clock()
+            table.clear(looseBalls)
+            for _, inst in ipairs(workspace:GetDescendants()) do
+                if inst:IsA("BasePart") and inst.Name == "Ball" then looseBalls[#looseBalls + 1] = inst end
+            end
+        end
+        for _, inst in ipairs(looseBalls) do
+            if inst.Parent and not inst.Anchored then
                 local held = false
                 for _, p in ipairs(Players:GetPlayers()) do
                     local c = p.Character
@@ -4636,114 +5301,145 @@ do
         Replicator["ReplicateBall"] = OriginalReplicateBall
     end
 end
+-- Aura changer: ported from Golden Eagle (body aura). Instead of welding a cloned rig,
+-- it clones the aura rig's Takeover effects (particles / beams / trails / lights) onto
+-- the matching character parts and re-checks them every 2s so they survive respawns.
 do
-    function CleanCharacter()
-        local char = LocalPlayer.Character
-        if not char then return end
-        local realHead = char:FindFirstChild("Head")
-        for _, child in char:GetChildren() do
-            if child:IsA("Part") or child:IsA("MeshPart") then
-                if child.Name:lower():find("head") and child ~= realHead then child.Transparency = 1; child.CanCollide = false end
-                if child.Name:lower() == "aura" then child.Transparency = 1; child.CanCollide = false end
-            end
+    local BODY_PARTS = { "Head", "HumanoidRootPart", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg" }
+    local auraRuntime = { Character = nil, Aura = nil, CheckAt = 0 }
+
+    local function ClearManualBodyAura(character)
+        if not character then return end
+        for _, object in ipairs(character:GetDescendants()) do
+            if object:GetAttribute("AuralLocalAura") then object:Destroy() end
         end
     end
 
-    function FindRig(auraModel)
-        for _, child in auraModel:GetChildren() do
-            if child:IsA("Model") and child:FindFirstChildOfClass("Humanoid") then return child end
-        end
-        if auraModel:FindFirstChildOfClass("Humanoid") then return auraModel end
-        return nil
-    end
-
-    function GetAuraRigParts(rigModel)
-        local parts = {}
-        for _, nm in {"Head","LeftArm","RightArm","Torso","LeftLeg","RightLeg","HumanoidRootPart"} do
-            local part = rigModel:FindFirstChild(nm)
-            if part and part:IsA("BasePart") then parts[nm] = part end
-        end
-        return parts
-    end
-
-    function GetCharacterParts()
-        local char = LocalPlayer.Character
-        if not char then return {} end
-        local parts = {}
-        for _, nm in {"Head","LeftArm","RightArm","Torso","UpperTorso","LeftLeg","RightLeg","HumanoidRootPart"} do
-            local part = char:FindFirstChild(nm)
-            if part and part:IsA("BasePart") then parts[nm] = part end
-        end
-        return parts
-    end
-
-    function RemoveFaceTextures(part)
-        if not part then return end
-        for _, child in part:GetChildren() do
-            if child:IsA("Decal") or child:IsA("Texture") or child:IsA("SurfaceAppearance") then child:Destroy() end
-        end
-    end
-
-    function CreateAuraVisuals(auraModel)
-        local char = LocalPlayer.Character
-        if not char or not char.Parent then return false end
-        if char:FindFirstChild("AuraVisuals") then char.AuraVisuals:Destroy() end
-        CleanCharacter()
-        local rig = FindRig(auraModel)
-        if not rig then return false end
-        local auraParts = GetAuraRigParts(rig)
-        if not auraParts or next(auraParts) == nil then return false end
-        local charParts = GetCharacterParts()
-        if not charParts or next(charParts) == nil then return false end
-        local container = Instance.new("Model")
-        container.Name = "AuraVisuals"
-        container.Parent = char
-        if not charParts["Head"] then return false end
-        for partName, auraPart in auraParts do
-            local charPart = charParts[partName]
-            if charPart and auraPart then
-                local newPart = auraPart:Clone()
-                newPart.Anchored = false
-                newPart.CanCollide = false
-                newPart.Transparency = 1
-                newPart.Parent = container
-                if partName == "Head" then
-                    RemoveFaceTextures(newPart)
-                    local weld = Instance.new("Weld")
-                    weld.Part0 = charPart; weld.Part1 = newPart
-                    weld.C0 = CFrame.new(0, 0, 0); weld.Parent = newPart
-                elseif partName == "HumanoidRootPart" then
-                    newPart.Transparency = 1
-                    newPart.CanCollide = false
-                    newPart.Anchored = false
-                else
-                    local weld = Instance.new("Weld")
-                    weld.Part0 = charPart; weld.Part1 = newPart
-                    local referencePart = rig:FindFirstChild("HumanoidRootPart") or rig.PrimaryPart or auraPart
-                    weld.C0 = CFrame.new(auraPart.Position - referencePart.Position)
-                    weld.Parent = newPart
+    local function StripBodyAura(character)
+        if not character then return end
+        for _, object in ipairs(character:GetDescendants()) do
+            if object:GetAttribute("Takeover") ~= nil or object:GetAttribute("AuralLocalAura") ~= nil then
+                if object:IsA("ParticleEmitter") or object:IsA("Trail") or object:IsA("Beam")
+                    or object:IsA("PointLight") or object:IsA("SpotLight") or object:IsA("SurfaceLight") then
+                    pcall(function() object.Enabled = false end)
                 end
             end
         end
-        for _, child in container:GetDescendants() do
-            if child:IsA("Script") or child:IsA("LocalScript") or child:IsA("ModuleScript") then child:Destroy() end
+    end
+
+    local function HasLocalTakeover(character)
+        if not character then return false end
+        for _, object in ipairs(character:GetDescendants()) do
+            if object:GetAttribute("Takeover") or object:GetAttribute("AuralLocalAura") then return true end
         end
-        return true
+        return false
+    end
+
+    local function ForceBodyAuraVisible(character)
+        if not character then return end
+        for _, object in ipairs(character:GetDescendants()) do
+            if object:GetAttribute("Takeover") or object:GetAttribute("AuralLocalAura") then
+                if object:IsA("ParticleEmitter") then
+                    local savedSize = object:GetAttribute("Size")
+                    if savedSize then pcall(function() object.Size = savedSize end) end
+                    object.Enabled = true
+                elseif object:IsA("Beam") or object:IsA("Trail") or object:IsA("PointLight") then
+                    object.Enabled = true
+                end
+            end
+        end
+    end
+
+    local function ApplyManualBodyAura(character, sourceRig)
+        if not (character and sourceRig) then return end
+        ClearManualBodyAura(character)
+        for _, partName in ipairs(BODY_PARTS) do
+            local targetPart = character:FindFirstChild(partName)
+            local sourcePart = sourceRig:FindFirstChild(partName)
+            if targetPart and sourcePart then
+                for _, child in ipairs(sourcePart:GetChildren()) do
+                    if child:GetAttribute("Takeover") then
+                        local clone = child:Clone()
+                        clone:SetAttribute("Takeover", nil)
+                        clone:SetAttribute("AuralLocalAura", true)
+                        for _, descendant in ipairs(clone:GetDescendants()) do
+                            descendant:SetAttribute("Takeover", nil)
+                            descendant:SetAttribute("AuralLocalAura", true)
+                        end
+                        clone.Parent = targetPart
+                    end
+                end
+            end
+        end
+        for _, partName in ipairs(BODY_PARTS) do
+            local targetPart = character:FindFirstChild(partName)
+            if targetPart then
+                for _, object in ipairs(targetPart:GetDescendants()) do
+                    if object:GetAttribute("AuralLocalAura") then
+                        if object:IsA("ParticleEmitter") then
+                            local savedSize = object:GetAttribute("Size")
+                            if savedSize then pcall(function() object.Size = savedSize end) end
+                            object.Enabled = true
+                        elseif object:IsA("Beam") or object:IsA("Trail") then
+                            local a0 = object:GetAttribute("Attachment0")
+                            local a1 = object:GetAttribute("Attachment1")
+                            if a0 then object.Attachment0 = targetPart:FindFirstChild(a0, true) end
+                            if a1 then object.Attachment1 = targetPart:FindFirstChild(a1, true) end
+                            object.Enabled = true
+                        elseif object:IsA("PointLight") then
+                            object.Enabled = true
+                        end
+                    end
+                end
+            end
+        end
     end
 
     function ApplyAura(auraModel)
         local char = LocalPlayer.Character
-        if not char then return false end
-        if char:FindFirstChild("AuraVisuals") then char.AuraVisuals:Destroy() end
-        task.wait(0.1)
-        return CreateAuraVisuals(auraModel)
+        if not (char and auraModel) then return false end
+        local rig = auraModel:FindFirstChild("Rig") or auraModel
+        if not rig:IsA("Model") then return false end
+        ApplyManualBodyAura(char, rig)
+        ForceBodyAuraVisible(char)
+        auraRuntime.Character, auraRuntime.Aura, auraRuntime.CheckAt = char, auraModel.Name, os.clock()
+        return true
     end
 
     function RemoveAura()
         local char = LocalPlayer.Character
-        if char and char:FindFirstChild("AuraVisuals") then char.AuraVisuals:Destroy() end
+        if char then
+            ClearManualBodyAura(char)
+            StripBodyAura(char)
+        end
+        auraRuntime.Character, auraRuntime.Aura = nil, nil
         return true
     end
+
+    -- keeps the aura applied across respawns / server re-renders (checked twice a second,
+    -- full descendant scan only every 2s)
+    local acc = 0
+    J:Connect(RunService.Heartbeat, function(dt)
+        acc += dt
+        if acc < 0.5 then return end
+        acc = 0
+        if not (s.Aura.Enabled and s.Aura.SelectedAura and s.Aura.SelectedAura ~= "None") then return end
+        local char = LocalPlayer.Character
+        if not char then return end
+        local now = os.clock()
+        local changed = auraRuntime.Character ~= char or auraRuntime.Aura ~= s.Aura.SelectedAura
+        if not changed and now - auraRuntime.CheckAt < 2 then return end
+        local shop = ReplicatedStorage:FindFirstChild("ShopItems")
+        local folder = shop and shop:FindFirstChild("Aura")
+        local model = folder and folder:FindFirstChild(s.Aura.SelectedAura)
+        if not model then return end
+        if changed or not HasLocalTakeover(char) then
+            pcall(ApplyAura, model)
+        else
+            auraRuntime.CheckAt = now
+            ForceBodyAuraVisible(char)
+        end
+    end)
 end
 
 local hiddenTags = {}
@@ -4948,11 +5644,15 @@ do
 
         if LocalPlayer.Character then setupGui(LocalPlayer.Character) end
 
-        hoopDistConnection = RunService.Heartbeat:Connect(function()
+        local hoopAcc = 0
+        hoopDistConnection = RunService.Heartbeat:Connect(function(dt)
             if not s.Visuals.HoopDistance then
                 if hoopDistanceGui then hoopDistanceGui.Enabled = false end
                 return
             end
+            hoopAcc += dt
+            if hoopAcc < 0.1 then return end
+            hoopAcc = 0
             local char = LocalPlayer.Character
             local head = char and char:FindFirstChild("Head")
             if not char or not head then return end
@@ -6096,6 +6796,30 @@ workspace.DescendantRemoving:Connect(function(child)
 end)
 
 do
+    -- which side of this court you are on; cached for 0.5s because nearestgoal/nearestrim
+    -- run every frame and used to rescan every _CourtPlayers slot for every goal
+    local teamCache = setmetatable({}, { __mode = "k" })
+    function getMyTeamOnCourt(Court)
+        if not Court then return false end
+        local now = os.clock()
+        local cached = teamCache[Court]
+        if cached and now - cached.at < 0.5 then return cached.team end
+        local team = false
+        local CourtPlayers = Court:FindFirstChild("_CourtPlayers")
+        if CourtPlayers then
+            for _, v in ipairs(CourtPlayers:GetChildren()) do
+                local SlotValue = v.Value
+                if typeof(SlotValue) == "Instance" and SlotValue:IsA("Player") and SlotValue.Name == LocalPlayer.Name then
+                    local SlotTeam = v.Name:sub(1, 4)
+                    team = (SlotTeam == "Home") and "Home" or (SlotTeam == "Away" and "Away")
+                    break
+                end
+            end
+        end
+        teamCache[Court] = { team = team, at = now }
+        return team
+    end
+
     function hasball(char) return char and char:FindFirstChild("Basketball") ~= nil end
 
     function nearestgoal(root)
@@ -6110,25 +6834,11 @@ do
 
             local Hitboxes = goal.Parent
             if Hitboxes and (Hitboxes.Name == "HitboxesHome" or Hitboxes.Name == "HitboxesAway") then
-                local Court = Hitboxes.Parent
-                local CourtPlayers = Court and Court:FindFirstChild("_CourtPlayers")
-                if CourtPlayers then
-                    local MyTeam
-                    for _, v in ipairs(CourtPlayers:GetChildren()) do
-                        local SlotTeam = v.Name:sub(1, 4)
-                        local SlotValue = v.Value
-                        if typeof(SlotValue) == "Instance" and SlotValue:IsA("Player") then
-                            if SlotValue.Name == LocalPlayer.Name then
-                                MyTeam = (SlotTeam == "Home") and "Home" or (SlotTeam == "Away" and "Away")
-                                break
-                            end
-                        end
-                    end
-                    if MyTeam then
-                        if (MyTeam == "Home" and Hitboxes.Name == "HitboxesHome") or
-                           (MyTeam == "Away" and Hitboxes.Name == "HitboxesAway") then
-                            continue
-                        end
+                local MyTeam = getMyTeamOnCourt(Hitboxes.Parent)
+                if MyTeam then
+                    if (MyTeam == "Home" and Hitboxes.Name == "HitboxesHome") or
+                       (MyTeam == "Away" and Hitboxes.Name == "HitboxesAway") then
+                        continue
                     end
                 end
             end
@@ -6182,6 +6892,7 @@ do
     function addconnection(c) table.insert(state.connections, c); return c end
 
     function settarget(target)
+        if target == nil and state.target == nil then return end
         state.target = target
         if state.actorst then pcall(function() state.actorst.t = target end) end
     end
@@ -6209,6 +6920,11 @@ do
 
     function updateAuralTarget()
         if not state.active or not s.Shooting.AuralEnabled then settarget(nil); return end
+        local clickMode = s.Shooting.AuralTrigger == "Click"
+        if clickMode and not (UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+            or os.clock() - (state.lastClick or 0) < 0.8) then
+            settarget(nil); return
+        end
         local char = LocalPlayer.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -6217,11 +6933,20 @@ do
         if hum.FloorMaterial ~= Enum.Material.Air and not hum.Jump then settarget(nil); return end
         local goal, distance = nearestgoal(root)
         if not goal then settarget(nil); return end
-        if distance < AURAL_MIN_DIST or distance > AURAL_MAX_DIST then
+        local tableArc, tablePower = getTableShot(distance)
+        if distance < AURAL_MIN_DIST or (distance > AURAL_MAX_DIST and not tableArc) then
             settarget(nil)
             return
         end
-        local offset = getArcOffset(distance) + getgenv().Settings.Shooting.ShotYAxis
+        if clickMode then
+            -- the jump handler sets power in Jump mode; in Click mode do it here
+            local wanted = tablePower or 85
+            if state.lastAuralPower ~= wanted then
+                state.lastAuralPower = wanted
+                if tablePower and setpower then setpower(tablePower) else LocalPlayer:SetAttribute("Power", 85) end
+            end
+        end
+        local offset = (tableArc or getArcOffset(distance)) + getgenv().Settings.Shooting.ShotYAxis
 
         if s.Shooting.HumanizeAim then
             local strength = s.Shooting.HumanizeStrength or 1.2
@@ -6349,6 +7074,7 @@ function setupCharacterAural(char)
         airborne = true
 
         if not s.Shooting.AuralEnabled then return end
+        if s.Shooting.AuralTrigger == "Click" then return end -- Click mode: you shoot, the aim follows
 if s.Shooting.ArmInMatch and not IsInMatch() then return end
         if not hasball(char) then return end
 
@@ -6366,9 +7092,10 @@ if s.Shooting.ArmInMatch and not IsInMatch() then return end
         local goal, distance = nearestgoal(root)
         local minDist = isMobile and 30 or AURAL_MIN_DIST
 
-        if not goal or distance < minDist or distance > AURAL_MAX_DIST then return end
+        local tableArc, tablePower = getTableShot(distance)
+        if not goal or distance < minDist or (distance > AURAL_MAX_DIST and not tableArc) then return end
 
-        local arc = getArcOffset(distance) + s.Shooting.ShotYAxis
+        local arc = (tableArc or getArcOffset(distance)) + s.Shooting.ShotYAxis
         local targetPos = nil
 
         if s.Shooting.HumanizeAim then
@@ -6384,7 +7111,7 @@ if s.Shooting.ArmInMatch and not IsInMatch() then return end
                 else
                     local side = (math.random() < 0.5) and -1 or 1
                     targetPos = goal.Position
-                        + Vector3.new(0, getArcOffset(distance) + s.Shooting.ShotYAxis, 0)
+                        + Vector3.new(0, (tableArc or getArcOffset(distance)) + s.Shooting.ShotYAxis, 0)
                         + Camera.CFrame.RightVector * (side * (strength * 2 + math.random() * 2))
                 end
             else
@@ -6397,7 +7124,11 @@ if s.Shooting.ArmInMatch and not IsInMatch() then return end
         settarget(targetPos)
         task.wait(0.05)
 
-        LocalPlayer:SetAttribute("Power", 85)
+        if tablePower and setpower then
+            setpower(tablePower)
+        else
+            LocalPlayer:SetAttribute("Power", 85)
+        end
 
         local shotdelay = s.Shooting.ShotDelay or 0.25
 
@@ -6432,6 +7163,11 @@ addconnection(workspace.DescendantAdded:Connect(function(object)
     if validgoal(object) then table.insert(goals, object) end
 end))
 
+addconnection(UserInputService.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        state.lastClick = os.clock()
+    end
+end))
 addconnection(RunService.Heartbeat:Connect(updateAuralTarget))
 addconnection(Players.PlayerAdded:Connect(function() task.defer(hookactors) end))
 
@@ -6538,25 +7274,11 @@ do
             if rim and rim.Parent then
                 local Hitboxes = rim.Parent
                 if Hitboxes and (Hitboxes.Name == "HitboxesHome" or Hitboxes.Name == "HitboxesAway") then
-                    local Court = Hitboxes.Parent
-                    local CourtPlayers = Court and Court:FindFirstChild("_CourtPlayers")
-                    if CourtPlayers then
-                        local MyTeam
-                        for _, v in ipairs(CourtPlayers:GetChildren()) do
-                            local SlotTeam = v.Name:sub(1, 4)
-                            local SlotValue = v.Value
-                            if typeof(SlotValue) == "Instance" and SlotValue:IsA("Player") then
-                                if SlotValue.Name == LocalPlayer.Name then
-                                    MyTeam = (SlotTeam == "Home") and "Home" or (SlotTeam == "Away" and "Away")
-                                    break
-                                end
-                            end
-                        end
-                        if MyTeam then
-                            if (MyTeam == "Home" and Hitboxes.Name == "HitboxesHome") or
-                               (MyTeam == "Away" and Hitboxes.Name == "HitboxesAway") then
-                                continue
-                            end
+                    local MyTeam = getMyTeamOnCourt(Hitboxes.Parent)
+                    if MyTeam then
+                        if (MyTeam == "Home" and Hitboxes.Name == "HitboxesHome") or
+                           (MyTeam == "Away" and Hitboxes.Name == "HitboxesAway") then
+                            continue
                         end
                     end
                 end
@@ -6581,8 +7303,10 @@ do
         if dist > FATAL_MAX_DIST_85 then selectedPower = 90; if dist > FATAL_MAX_DIST_90 then selectedPower = 95 end end
         local maxDist = FATAL_MAX_DIST_85
         if selectedPower == 90 then maxDist = FATAL_MAX_DIST_90 elseif selectedPower == 95 then maxDist = FATAL_MAX_DIST_95 end
+        local tableArc, tablePower = getTableShot(flatDistTo(rim, hrp.Position))
+        if tableArc then selectedPower = tablePower; maxDist = math.huge end
         if dist < FATAL_MIN_DIST or dist > maxDist then fatalState.shooting = false; return end
-        local arc = getArc(dist, selectedPower)
+        local arc = tableArc or getArc(dist, selectedPower)
         if dist < 59 then
             local toRim = (rim.Position - hrp.Position).Unit
             local velocityTowardRim = hrp.AssemblyLinearVelocity:Dot(toRim)
@@ -6652,6 +7376,7 @@ do
         if dist > FATAL_MAX_DIST_85 then selectedPower = 90; if dist > FATAL_MAX_DIST_90 then selectedPower = 95 end end
         local maxDist = FATAL_MAX_DIST_85
         if selectedPower == 90 then maxDist = FATAL_MAX_DIST_90 elseif selectedPower == 95 then maxDist = FATAL_MAX_DIST_95 end
+        if getTableShot(flatDistTo(rim, hrp.Position)) then maxDist = math.huge end
         local inRange = (dist >= FATAL_MIN_DIST) and (dist <= maxDist)
         fatalState.inRange = inRange
         if not inRange then
@@ -6661,16 +7386,27 @@ do
         if s.Shooting.ThreesOnly and dist < 55 then fatalState.lastvelY = hrp.AssemblyLinearVelocity.Y; return end
         local velY = hrp.AssemblyLinearVelocity.Y
         if not fatalState.shooting then
-            if airborne and fatalState.lastvelY > 0 and velY <= 0 and not fatalState.peakfiring and hasball(char) and (os.clock() - fatalState.lastjumpshot) > 0.5 then
+            local atPeak = airborne and fatalState.lastvelY > 0 and velY <= 0
+            -- Aim Assist: if you are not looking up at the rim on the exact peak frame, keep
+            -- checking for a short window after the peak instead of dropping the whole shot.
+            if atPeak and s.Shooting.AimAssist then fatalState.assistUntil = os.clock() + 0.15 end
+            local pending = airborne and fatalState.assistUntil ~= nil and os.clock() <= fatalState.assistUntil
+            if (atPeak or pending) and not fatalState.peakfiring and hasball(char) and (os.clock() - fatalState.lastjumpshot) > 0.5 then
+                local lookOk = true
                 if s.Shooting.AimAssist then
-                    local lookY = Camera.CFrame.LookVector.Y
-                    if lookY <= 0.3 then fatalState.lastvelY = velY; return end
+                    -- required pitch scales with the rim: far shots need less upward look than close ones
+                    local camCF = Camera.CFrame
+                    local wanted = (rim.Position - camCF.Position).Unit.Y
+                    lookOk = camCF.LookVector.Y >= math.min(0.3, wanted - 0.12)
                 end
-                fatalState.peakfiring = true
-                fatalState.lastjumpshot = os.clock()
-                task.spawn(function() flickshot_fatal(); fatalState.peakfiring = false end)
+                if lookOk then
+                    fatalState.assistUntil = nil
+                    fatalState.peakfiring = true
+                    fatalState.lastjumpshot = os.clock()
+                    task.spawn(function() flickshot_fatal(); fatalState.peakfiring = false end)
+                end
             end
-            if not airborne then fatalState.peakfiring = false end
+            if not airborne then fatalState.peakfiring = false; fatalState.assistUntil = nil end
         end
         fatalState.lastvelY = velY
     end
@@ -7867,72 +8603,484 @@ arrayListTask = task.spawn(function()
 end)
 end
 
-fallbackSpectating = false
-specTarget = "None"
+-- Spectating: ported from Golden Eagle's match spectator ("Watch").
+-- Picks a live court (or auto-picks the best one), follows the ball with a chosen camera
+-- shot, and restores your camera when stopped. Does not join the match.
+SpecWatch = {
+    Active = false,
+    CourtName = (s.Watch and s.Watch.Court == "Auto" and "Auto Live Match") or (s.Watch and s.Watch.Court) or "Auto Live Match",
+    CourtSelection = "Auto Live Match",
+    PlayerSummary = "--",
+    Mode = (s.Watch and s.Watch.Mode) or "2K CAM",
+    Status = "READY",
+    Court = nil, Ball = nil,
+    LastRefresh = 0, RosterAt = 0, BallAt = 0, BallCourt = nil,
+    SavedCameraType = nil, SavedCameraSubject = nil, SavedFieldOfView = nil,
+    CourtOptions = { "Auto Live Match" },
+    CourtLookup = {}, LiveCourts = {}, LivePlayers = {},
+    FrameCache = setmetatable({}, { __mode = "k" }),
+    CachedCourt = nil, CachedParticipants = {},
+    AppliedFilter = nil, FilterEffect = nil,
+    IgnoredSlots = { Queue = true, Squad = true, Party = true },
+    CameraModes = {
+        "2K CAM", "2K REVERSED", "BROADCAST", "BROADCAST ZOOM", "BLIMP CAM",
+        "DRONE CHASE", "SIDELINE LOW", "BASELINE HIGH", "ISOMETRIC", "TOP DOWN",
+        "PLAYER FOCUS", "PLAYER SHOULDER", "PLAYER LEADING", "PLAYER LOW ANGLE", "PLAYER WIDE",
+        "PLAYER DRONE", "DEFENDER VIEW", "FIRST PERSON EST", "KNEE CAM", "FOOTWORK CAM",
+        "ORBIT CLOSE", "ORBIT WIDE", "ORBIT BIRDS EYE", "ORBIT FAST", "ORBIT SLOW",
+        "PLAYER ORBIT", "PLAYER ORBIT WIDE", "ORBIT LOW", "ORBIT HIGH", "ORBIT ISOMETRIC",
+        "CINEMATIC LOW", "CINEMATIC FAR", "DUTCH ACTION", "DUTCH REVERSE", "WORMS EYE",
+        "CATWALK", "SNIPER CAM", "NOSEBLEEDS", "COURT CORNER", "VIP LOUNGE",
+        "90s BROADCAST", "NOIR FILM", "SEPIA DRAMA", "CYBERPUNK", "VINTAGE POLAROID",
+        "SECURITY CAM", "SUMMER VIBES", "COLD NIGHT", "GRIMY", "HIGH FANTASY",
+    },
+    Shots = {
+        ["2K CAM"] = {Type="Ball", Offset=Vector3.new(0,12,25)},
+        ["2K REVERSED"] = {Type="Ball", Offset=Vector3.new(0,12,-25)},
+        ["BROADCAST"] = {Type="Ball", Offset=Vector3.new(40,15,0)},
+        ["BROADCAST ZOOM"] = {Type="Ball", Offset=Vector3.new(25,8,0)},
+        ["BLIMP CAM"] = {Type="Ball", Offset=Vector3.new(0,80,0)},
+        ["DRONE CHASE"] = {Type="Ball", Offset=Vector3.new(0,18,18)},
+        ["SIDELINE LOW"] = {Type="Ball", Offset=Vector3.new(25,3,0)},
+        ["BASELINE HIGH"] = {Type="Ball", Offset=Vector3.new(0,25,45)},
+        ["ISOMETRIC"] = {Type="Ball", Offset=Vector3.new(30,30,30)},
+        ["TOP DOWN"] = {Type="Ball", Offset=Vector3.new(0,50,0.1)},
+        ["PLAYER FOCUS"] = {Type="Player", Offset=Vector3.new(0,15,20)},
+        ["PLAYER SHOULDER"] = {Type="Player", Offset=Vector3.new(3,2,5)},
+        ["PLAYER LEADING"] = {Type="Player", Offset=Vector3.new(0,2,-15)},
+        ["PLAYER LOW ANGLE"] = {Type="Player", Offset=Vector3.new(0,-2,8)},
+        ["PLAYER WIDE"] = {Type="Player", Offset=Vector3.new(0,10,35)},
+        ["PLAYER DRONE"] = {Type="Player", Offset=Vector3.new(0,25,0.1)},
+        ["DEFENDER VIEW"] = {Type="Player", Offset=Vector3.new(0,5,-25)},
+        ["FIRST PERSON EST"] = {Type="Player", Offset=Vector3.new(0,0.5,-1)},
+        ["KNEE CAM"] = {Type="Player", Offset=Vector3.new(0,-1.5,6)},
+        ["FOOTWORK CAM"] = {Type="Player", Offset=Vector3.new(0,-2.5,4)},
+        ["ORBIT CLOSE"] = {Type="OrbitBall", Radius=15, Height=5, Speed=0.5},
+        ["ORBIT WIDE"] = {Type="OrbitBall", Radius=40, Height=15, Speed=0.2},
+        ["ORBIT BIRDS EYE"] = {Type="OrbitBall", Radius=30, Height=40, Speed=0.3},
+        ["ORBIT FAST"] = {Type="OrbitBall", Radius=20, Height=8, Speed=1.2},
+        ["ORBIT SLOW"] = {Type="OrbitBall", Radius=50, Height=25, Speed=0.1},
+        ["PLAYER ORBIT"] = {Type="OrbitPlayer", Radius=12, Height=4, Speed=0.6},
+        ["PLAYER ORBIT WIDE"] = {Type="OrbitPlayer", Radius=30, Height=10, Speed=0.3},
+        ["ORBIT LOW"] = {Type="OrbitBall", Radius=25, Height=1, Speed=0.4},
+        ["ORBIT HIGH"] = {Type="OrbitBall", Radius=20, Height=60, Speed=0.4},
+        ["ORBIT ISOMETRIC"] = {Type="OrbitBall", Radius=35, Height=35, Speed=0.3},
+        ["CINEMATIC LOW"] = {Type="Ball", Offset=Vector3.new(15,1,0)},
+        ["CINEMATIC FAR"] = {Type="Ball", Offset=Vector3.new(0,8,45)},
+        ["DUTCH ACTION"] = {Type="Ball", Offset=Vector3.new(15,10,15), Roll=15},
+        ["DUTCH REVERSE"] = {Type="Ball", Offset=Vector3.new(-15,10,-15), Roll=-15},
+        ["WORMS EYE"] = {Type="Ball", Offset=Vector3.new(0,0.5,15)},
+        ["CATWALK"] = {Type="Ball", Offset=Vector3.new(0,70,30)},
+        ["SNIPER CAM"] = {Type="Ball", Offset=Vector3.new(70,40,70)},
+        ["NOSEBLEEDS"] = {Type="Ball", Offset=Vector3.new(45,35,0)},
+        ["COURT CORNER"] = {Type="Ball", Offset=Vector3.new(30,10,30)},
+        ["VIP LOUNGE"] = {Type="Ball", Offset=Vector3.new(40,25,40)},
+        ["90s BROADCAST"] = {Type="Ball", Offset=Vector3.new(35,12,0), Filter={Sat=-0.4,Tint=Color3.fromRGB(255,240,200),Cont=0.1}},
+        ["NOIR FILM"] = {Type="Ball", Offset=Vector3.new(20,5,20), Filter={Sat=-1,Cont=0.6,Bright=0.1}},
+        ["SEPIA DRAMA"] = {Type="Player", Offset=Vector3.new(10,2,10), Filter={Sat=-0.5,Tint=Color3.fromRGB(200,160,110),Cont=0.3}},
+        ["CYBERPUNK"] = {Type="OrbitBall", Radius=20,Height=10,Speed=0.4,Filter={Sat=0.8,Tint=Color3.fromRGB(255,150,255),Cont=0.4}},
+        ["VINTAGE POLAROID"] = {Type="Ball", Offset=Vector3.new(0,15,30), Filter={Sat=-0.2,Tint=Color3.fromRGB(255,225,180),Cont=-0.1}},
+        ["SECURITY CAM"] = {Type="Ball", Offset=Vector3.new(40,30,40), Filter={Sat=-0.8,Tint=Color3.fromRGB(150,255,150),Cont=0.8,Bright=0.2}},
+        ["SUMMER VIBES"] = {Type="Player", Offset=Vector3.new(0,8,25), Filter={Sat=0.5,Tint=Color3.fromRGB(255,230,200),Bright=0.1}},
+        ["COLD NIGHT"] = {Type="Ball", Offset=Vector3.new(0,10,35), Filter={Sat=-0.3,Tint=Color3.fromRGB(180,200,255)}},
+        ["GRIMY"] = {Type="OrbitPlayer", Radius=10,Height=2,Speed=0.8,Filter={Sat=0.2,Tint=Color3.fromRGB(200,220,150),Cont=0.5}},
+        ["HIGH FANTASY"] = {Type="Ball", Offset=Vector3.new(0,40,0.1), Filter={Sat=0.6,Tint=Color3.fromRGB(230,200,255),Bright=0.15}},
+    },
+}
 
-local function refreshCourts()
-    local list = {}
-    local courtsFolder = workspace:FindFirstChild("Courts")
-    if courtsFolder then
-        for _, c in ipairs(courtsFolder:GetChildren()) do
-            if c:FindFirstChild("_CourtPlayers") and c:FindFirstChild("_CourtSettings") then
-                table.insert(list, c)
+do
+    local Lighting = game:GetService("Lighting")
+    local W = SpecWatch
+
+    local function getAllCourts()
+        local courts = {}
+        local folder = workspace:FindFirstChild("Courts")
+        if folder then
+            for _, court in ipairs(folder:GetChildren()) do
+                if court:IsA("Model") then table.insert(courts, court) end
             end
         end
-    end
-    Spectate.Courts = list
-end
-
-local function spectateDirect(player)
-    local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-    if not hum then return false end
-    local cam = workspace.CurrentCamera
-    cam.CameraType = Enum.CameraType.Custom
-    cam.CameraSubject = hum
-    fallbackSpectating = true
-    return true
-end
-
-local function stopDirect()
-    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    if hum then workspace.CurrentCamera.CameraSubject = hum end
-    fallbackSpectating = false
-end
-
-local function stopSpectating()
-    if fallbackSpectating then
-        stopDirect()
-    else
-        pcall(function() Spectate:Stop() end)
-    end
-end
-
-local function spectatePlayer(player, notify)
-    stopSpectating()
-
-    refreshCourts()
-    local ok, found, court = pcall(Spectate.GetPlayersCourt, Spectate, player)
-
-    if ok and found and court then
-        Spectate:SetToCourt(court)
-        Spectate:Start()
-        return true, "court"
+        local single = workspace:FindFirstChild("Court")
+        if single and single:IsA("Model") then
+            local listed = false
+            for _, court in ipairs(courts) do if court == single then listed = true break end end
+            if not listed then table.insert(courts, single) end
+        end
+        return courts
     end
 
-    if game:IsLoaded() then
-        zolar:Notification({
-            Name = "Spectating Fallback",
-            Description = "Player is not in a court, using fallback spectate.",
-            Icon = "triangle-alert",
-            Duration = 4
-        })
+    function W.GetCourtFrame(court)
+        if not court then return nil, nil end
+        local now = os.clock()
+        local cached = W.FrameCache[court]
+        if cached and now - cached.At < 1 then return cached.Frame, cached.Size end
+        local positions = court:FindFirstChild("_CourtPositions")
+        local center = positions and positions:FindFirstChild("Center")
+        if center and center:IsA("BasePart") then
+            local hitbox = court:FindFirstChild("HitboxesHome") or court:FindFirstChild("Hitboxes")
+            local away = court:FindFirstChild("HitboxesAway")
+            local homeGoal = hitbox and hitbox:FindFirstChild("FieldGoal")
+            local awayGoal = away and away:FindFirstChild("FieldGoal")
+            if homeGoal and awayGoal then
+                local axis = awayGoal.Position - homeGoal.Position
+                local length = axis.Magnitude
+                if length > 1 then
+                    local look = CFrame.lookAt(center.Position, center.Position + axis.Unit)
+                    local size = Vector3.new(math.max(40, length * 0.6), 30, length)
+                    W.FrameCache[court] = { Frame = look, Size = size, At = now }
+                    return look, size
+                end
+            end
+            local size = Vector3.new(60, 30, 90)
+            W.FrameCache[court] = { Frame = center.CFrame, Size = size, At = now }
+            return center.CFrame, size
+        end
+        local ok, frame, size = pcall(function() return court:GetBoundingBox() end)
+        if ok and frame and size then
+            W.FrameCache[court] = { Frame = frame, Size = size, At = now }
+            return frame, size
+        end
+        local pivotOk, pivot = pcall(function() return court:GetPivot() end)
+        if pivotOk then
+            local size2 = Vector3.new(90, 30, 65)
+            W.FrameCache[court] = { Frame = pivot, Size = size2, At = now }
+            return pivot, size2
+        end
+        return nil, nil
     end
 
-    if spectateDirect(player) then
-        return true, "fallback"
+    function W.GetCourtSettings(court)
+        if not court then return nil end
+        return court:FindFirstChild("_CourtSettings") or court:FindFirstChild("CourtSettings")
     end
 
-    return false, "none"
+    function W.GetCourtPlayersFolder(court)
+        if not court then return nil end
+        return court:FindFirstChild("_CourtPlayers") or court:FindFirstChild("CourtPlayers")
+    end
+
+    function W.GetCourtValue(court, name)
+        local settings = W.GetCourtSettings(court)
+        local value = settings and settings:FindFirstChild(name)
+        if value and value:IsA("ValueBase") then return value.Value end
+        return nil
+    end
+
+    function W.IsCourtStarted(court) return W.GetCourtValue(court, "Started") == true end
+
+    function W.GetCourtScore(court)
+        local home = W.GetCourtValue(court, "HomeScore")
+        local away = W.GetCourtValue(court, "AwayScore")
+        if home == nil and away == nil then return nil end
+        return tostring(home or 0) .. " - " .. tostring(away or 0)
+    end
+
+    function W.IsPracticeCourt(court)
+        if not court then return true end
+        if string.find(string.lower(court.Name), "practice", 1, true) then return true end
+        if court:GetAttribute("Practice") == true then return true end
+        local practiceArea = workspace:FindFirstChild("PracticeArea")
+        if practiceArea and court:IsDescendantOf(practiceArea) then return true end
+        if not W.GetCourtPlayersFolder(court) then return true end
+        if not W.GetCourtSettings(court) then return true end
+        return false
+    end
+
+    function W.SlotIsPlaying(slotName)
+        slotName = tostring(slotName or "")
+        for prefix in pairs(W.IgnoredSlots) do
+            if string.sub(slotName, 1, #prefix) == prefix then return false end
+        end
+        return true
+    end
+
+    function W.SlotTeam(slotName)
+        return string.sub(tostring(slotName or ""), 1, 4) == "Home" and "Home" or "Away"
+    end
+
+    function W.GetPlayersForCourt(court)
+        local output = {}
+        local folder = W.GetCourtPlayersFolder(court)
+        if not folder then return output end
+        for _, slot in ipairs(folder:GetChildren()) do
+            if slot:IsA("ObjectValue") and W.SlotIsPlaying(slot.Name) then
+                local player = slot.Value
+                if player and player:IsA("Player") then
+                    table.insert(output, { Player = player, Slot = slot.Name, Team = W.SlotTeam(slot.Name) })
+                end
+            end
+        end
+        table.sort(output, function(a, b)
+            if a.Team ~= b.Team then return a.Team == "Home" end
+            return a.Slot < b.Slot
+        end)
+        return output
+    end
+
+    function W.IsLiveMatch(court, playerList)
+        if W.IsPracticeCourt(court) then return false end
+        if type(playerList) ~= "table" or #playerList == 0 then return false end
+        if W.IsCourtStarted(court) then return true end
+        return #playerList >= 2
+    end
+
+    function W.FormatPlayers(playerList)
+        if type(playerList) ~= "table" or #playerList == 0 then return "--" end
+        local home, away = {}, {}
+        for _, entry in ipairs(playerList) do
+            local player = entry.Player
+            if player then
+                local name = player.DisplayName ~= "" and player.DisplayName or player.Name
+                table.insert(entry.Team == "Home" and home or away, name)
+            end
+        end
+        if #home > 0 and #away > 0 then
+            return table.concat(home, ", ") .. " vs " .. table.concat(away, ", ")
+        end
+        local all = {}
+        for _, n in ipairs(home) do table.insert(all, n) end
+        for _, n in ipairs(away) do table.insert(all, n) end
+        if #all == 0 then return "--" end
+        return table.concat(all, ", ")
+    end
+
+    function W.RefreshOptions()
+        table.clear(W.CourtOptions)
+        table.clear(W.CourtLookup)
+        table.clear(W.LiveCourts)
+        table.clear(W.LivePlayers)
+        table.insert(W.CourtOptions, "Auto Live Match")
+        local selectedLabel
+        for _, court in ipairs(getAllCourts()) do
+            local participants = W.IsPracticeCourt(court) and {} or W.GetPlayersForCourt(court)
+            if W.IsLiveMatch(court, participants) then
+                local label = court.Name .. "  |  " .. W.FormatPlayers(participants)
+                local score = W.GetCourtScore(court)
+                if score and W.IsCourtStarted(court) then label = label .. "  [" .. score .. "]" end
+                table.insert(W.CourtOptions, label)
+                W.CourtLookup[label] = court.Name
+                W.LiveCourts[court.Name] = court
+                W.LivePlayers[court.Name] = participants
+                if W.CourtName == court.Name then selectedLabel = label end
+            end
+        end
+        table.sort(W.CourtOptions, function(a, b)
+            if a == "Auto Live Match" then return true end
+            if b == "Auto Live Match" then return false end
+            return string.lower(a) < string.lower(b)
+        end)
+        if W.CourtName == "Auto" or W.CourtName == "Auto Match" or W.CourtName == "Auto Live Match" then
+            W.CourtName, W.CourtSelection = "Auto Live Match", "Auto Live Match"
+        elseif selectedLabel then
+            W.CourtSelection = selectedLabel
+        else
+            W.CourtName, W.CourtSelection = "Auto Live Match", "Auto Live Match"
+        end
+        W.LastRefresh = os.clock()
+    end
+
+    function W.GetCourt()
+        if os.clock() - W.LastRefresh >= 0.75 then W.RefreshOptions() end
+        if W.CourtName ~= "Auto Live Match" then return W.LiveCourts[W.CourtName] end
+        local best, bestScore = nil, -math.huge
+        for name, court in pairs(W.LiveCourts) do
+            local score = #(W.LivePlayers[name] or {}) * 100
+            if W.IsCourtStarted(court) then score += 1000 end
+            local currentBall = W.GetCourtValue(court, "CurrentBall")
+            if currentBall and currentBall.Parent then score += 250 end
+            if score > bestScore then best, bestScore = court, score end
+        end
+        return best
+    end
+
+    function W.FindBall(court)
+        local now = os.clock()
+        if W.BallCourt == court and W.Ball and W.Ball.Parent and now - W.BallAt < 0.1 then return W.Ball end
+        local ballModel = W.GetCourtValue(court, "CurrentBall")
+        local part
+        if ballModel and ballModel.Parent then
+            local holder = ballModel.Parent
+            local root = holder and holder:FindFirstChild("HumanoidRootPart")
+            if root then
+                part = root
+            else
+                part = ballModel:FindFirstChild("Ball")
+                    or (ballModel:IsA("BasePart") and ballModel or nil)
+                    or ballModel:FindFirstChildWhichIsA("BasePart")
+            end
+        end
+        if not part then
+            local positions = court and court:FindFirstChild("_CourtPositions")
+            local center = positions and positions:FindFirstChild("Center")
+            if center and center:IsA("BasePart") then part = center end
+        end
+        W.Ball, W.BallCourt, W.BallAt = part, court, now
+        return part
+    end
+
+    function W.SetCourt(selection)
+        selection = tostring(selection or "Auto Live Match")
+        if selection == "Auto" or selection == "Auto Match" then selection = "Auto Live Match" end
+        local courtName = W.CourtLookup[selection]
+        W.CourtSelection = selection
+        W.CourtName = courtName or "Auto Live Match"
+        if s.Watch then s.Watch.Court = W.CourtName end
+        W.Court, W.CachedCourt, W.CachedParticipants, W.RosterAt = nil, nil, {}, 0
+        W.Ball, W.BallCourt, W.PlayerSummary = nil, nil, "--"
+    end
+
+    function W.SetMode(mode)
+        if not table.find(W.CameraModes, mode) then mode = "2K CAM" end
+        W.Mode = mode
+        if s.Watch then s.Watch.Mode = mode end
+    end
+
+    function W.ApplyFilter(filter)
+        if not filter then
+            if W.AppliedFilter == nil then return end
+            W.AppliedFilter = nil
+            if W.FilterEffect then W.FilterEffect.Enabled = false end
+            return
+        end
+        if W.AppliedFilter == filter and W.FilterEffect and W.FilterEffect.Parent and W.FilterEffect.Enabled then return end
+        if not W.FilterEffect or not W.FilterEffect.Parent then
+            W.FilterEffect = Instance.new("ColorCorrectionEffect")
+            W.FilterEffect.Name = "AuralSpectatorFilter"
+            W.FilterEffect.Parent = Lighting
+        end
+        W.FilterEffect.Enabled = true
+        W.FilterEffect.Saturation = filter.Sat or 0
+        W.FilterEffect.Contrast = filter.Cont or 0
+        W.FilterEffect.Brightness = filter.Bright or 0
+        W.FilterEffect.TintColor = filter.Tint or Color3.new(1, 1, 1)
+        W.AppliedFilter = filter
+    end
+
+    function W.RestoreCamera()
+        local cam = workspace.CurrentCamera
+        if not cam then return end
+        cam.CameraType = W.SavedCameraType or Enum.CameraType.Custom
+        local character = LocalPlayer.Character
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        cam.CameraSubject = W.SavedCameraSubject or humanoid
+        cam.FieldOfView = W.SavedFieldOfView or 70
+        W.ApplyFilter(nil)
+    end
+
+    function W.SetActive(value)
+        value = value == true
+        if value == W.Active then return end
+        local cam = workspace.CurrentCamera
+        if value then
+            W.RefreshOptions()
+            W.Court = W.GetCourt()
+            if not W.Court then
+                W.Active, W.Status, W.PlayerSummary = false, "NO LIVE MATCHES", "--"
+                return
+            end
+            if cam then
+                W.SavedCameraType, W.SavedCameraSubject, W.SavedFieldOfView = cam.CameraType, cam.CameraSubject, cam.FieldOfView
+            end
+            W.Active = true
+            W.CachedCourt = W.Court
+            W.CachedParticipants = W.LivePlayers[W.Court.Name] or W.GetPlayersForCourt(W.Court)
+            W.RosterAt = os.clock()
+            W.PlayerSummary = W.FormatPlayers(W.CachedParticipants)
+            W.Status = "WATCHING LIVE MATCH"
+        else
+            W.Active, W.Status = false, "READY"
+            W.Court, W.Ball, W.BallCourt, W.CachedCourt, W.CachedParticipants = nil, nil, nil, nil, {}
+            W.RestoreCamera()
+        end
+    end
+
+    function W.NearestPlayerRoot(position, court)
+        local participants = (W.CachedCourt == court and W.CachedParticipants)
+            or W.LivePlayers[court and court.Name or ""] or W.GetPlayersForCourt(court)
+        local nearest, minimum = nil, math.huge
+        for _, entry in ipairs(participants) do
+            local character = entry.Player and entry.Player.Character
+            local root = character and character:FindFirstChild("HumanoidRootPart")
+            if root then
+                local d = (root.Position - position).Magnitude
+                if d < minimum then nearest, minimum = root, d end
+            end
+        end
+        return nearest
+    end
+
+    function W.CameraForMode(mode, focusPosition, court, dt)
+        local shot = W.Shots[mode] or W.Shots["2K CAM"]
+        local lookTarget = focusPosition
+        if shot.Type == "Player" or shot.Type == "OrbitPlayer" then
+            local nearest = W.NearestPlayerRoot(focusPosition, court)
+            if nearest then lookTarget = nearest.Position end
+        end
+        local courtFrame = W.GetCourtFrame(court)
+        local camPos
+        if shot.Type == "OrbitBall" or shot.Type == "OrbitPlayer" then
+            local radius, height = shot.Radius or 20, shot.Height or 10
+            local ang = os.clock() * (shot.Speed or 0.5)
+            local orbit = Vector3.new(math.cos(ang) * radius, height, math.sin(ang) * radius)
+            camPos = lookTarget + (courtFrame and courtFrame:VectorToWorldSpace(orbit) or orbit)
+        else
+            local offset = shot.Offset or Vector3.new(0, 10, 20)
+            camPos = lookTarget + (courtFrame and courtFrame:VectorToWorldSpace(offset) or offset)
+        end
+        local cf = CFrame.new(camPos, lookTarget + Vector3.new(0, 1.5, 0))
+        if shot.Roll and shot.Roll ~= 0 then cf = cf * CFrame.Angles(0, 0, math.rad(shot.Roll)) end
+        return cf, 1 - math.exp(-8 * dt), shot.Filter
+    end
+
+    function W.Update(dt)
+        if not (W.Active and state.active) then return end
+        local cam = workspace.CurrentCamera
+        if not cam then return end
+        local now = os.clock()
+        local court = W.Court
+        if now - W.RosterAt >= 0.5 or not (court and court.Parent) then
+            W.RosterAt = now
+            court = W.GetCourt()
+            W.Court = court
+            if not court then
+                W.SetActive(false)
+                W.Status, W.PlayerSummary = "MATCH ENDED / EMPTY", "--"
+                return
+            end
+            local participants = W.LivePlayers[court.Name] or W.GetPlayersForCourt(court)
+            if not W.IsLiveMatch(court, participants) then
+                W.SetActive(false)
+                W.Status, W.PlayerSummary = "MATCH ENDED / EMPTY", "--"
+                return
+            end
+            W.CachedCourt, W.CachedParticipants = court, participants
+            W.PlayerSummary = W.FormatPlayers(participants)
+        end
+        local frame = W.GetCourtFrame(court)
+        if not frame then
+            W.Status = "COURT UNAVAILABLE"
+            W.ApplyFilter(nil)
+            return
+        end
+        local ball = W.FindBall(court)
+        local focus = ball and ball.Position or (frame.Position + Vector3.new(0, 3, 0))
+        local desired, smooth, filter = W.CameraForMode(W.Mode, focus, court, dt or 1 / 60)
+        if cam.CameraType ~= Enum.CameraType.Scriptable then cam.CameraType = Enum.CameraType.Scriptable end
+        if cam.CameraSubject ~= nil then cam.CameraSubject = nil end
+        cam.CFrame = cam.CFrame:Lerp(desired, smooth)
+        W.ApplyFilter(filter)
+        local status = ball and "WATCHING LIVE MATCH" or "WATCHING COURT"
+        if W.Status ~= status then W.Status = status end
+    end
+
+    J:Connect(RunService.RenderStepped, function(dt)
+        if not W.Active then return end
+        local ok, err = pcall(W.Update, dt)
+        if not ok and W.Active then
+            W.SetActive(false)
+            warn("[Aural] Spectate camera stopped: " .. tostring(err))
+        end
+    end)
 end
 do
     local MX = s.AutoMix
@@ -8616,6 +9764,11 @@ do
 
 
             pushHeadRideSettings()
+            if s.HeadRide.OnlyArmInMatch and not IsInMatch() then
+    HeadRide:SetTarget(nil)
+    HeadRide.Status = "WAITING FOR MATCH"
+    return
+end
 
 
 
@@ -8826,6 +9979,21 @@ do
     })
     fatalSection:Slider({ Name = "Green Chance", Min = 0, Max = 100, Default = s.Shooting.GreenChance, Step = 5, Suffix = "%", Flag = "fatal_green", Callback = function(v) s.Shooting.GreenChance = v end })
     fatalSection:Toggle({ Name = "High Arc (85s only)", Default = s.Shooting.ThreesOnly, Flag = "fatal_threes", Callback = function(v) s.Shooting.ThreesOnly = v end })
+    local arcTableSection = offenseSub:Section({ Name = "Auto Power", Side = 2 })
+    arcTableSection:Toggle({
+        Name = "Auto Power",
+        Default = s.Shooting.ArcTableAuto,
+        Flag = "arctable_auto",
+        Callback = function(v) s.Shooting.ArcTableAuto = v end
+    })
+    arcTableSection:Dropdown({
+        Name = "Power Preference",
+        Items = { "Closest to 85", "Lowest", "Highest" },
+        Default = s.Shooting.ArcTablePref,
+        Flag = "arctable_pref",
+        Callback = function(v) s.Shooting.ArcTablePref = v end
+    })
+
     fatalSection:Toggle({ Name = "Aim Assist (only shoot when looking up)", Default = s.Shooting.AimAssist, Flag = "fatal_aimassist", Callback = function(v) s.Shooting.AimAssist = v end })
 
     local selfPassSection = offenseSub:Section({ Name = "Self Pass", Side = 1 })
@@ -9164,6 +10332,15 @@ headRideSec:Toggle({
     end
 
 
+})
+
+    headRideSec:Toggle({
+    Name = "Only Arm In Match",
+    Default = s.HeadRide.OnlyArmInMatch,
+    Flag = "headride_onlyarmmatch",
+    Callback = function(v)
+        s.HeadRide.OnlyArmInMatch = v
+    end
 })
 
 
@@ -9611,7 +10788,7 @@ headRideSec:Toggle({
                         if rim and dist then
                             local minDist = s.Shooting.ThreesOnly and 55 or FATAL_MIN_DIST
                             local maxDist = FATAL_MAX_DIST_95
-                            if dist >= minDist and dist <= maxDist then
+                            if dist >= minDist and (dist <= maxDist or getTableShot(flatDistTo(rim, root.Position))) then
                                 inRange = true
                             end
                         end
@@ -9889,49 +11066,44 @@ headRideSec:Toggle({
     local RepSec = utilitySub:Section({ Name = "Calculation", Side = 1 })
     local specSec = utilitySub:Section({ Name = "Spectating", Side = 1 })
 
-    local specDropdown = specSec:Dropdown({
-        Name = "Select player",
-        Items = getInGamePlayerNames(),
-        Default = "None",
-        Flag = "spectate_player",
-        Callback = function(v) specTarget = v end
+    SpecWatch.RefreshOptions()
+    local specCourtDropdown = specSec:Dropdown({
+        Name = "Match",
+        Items = SpecWatch.CourtOptions,
+        Default = "Auto Live Match",
+        Flag = "spectate_court",
+        Callback = function(v) SpecWatch.SetCourt(v) end
     })
-
     specSec:Button({
-        Name = "Refresh list",
+        Name = "Refresh matches",
         Callback = function()
-            pcall(function() specDropdown:Refresh(getInGamePlayerNames()) end)
+            SpecWatch.RefreshOptions()
+            pcall(function() specCourtDropdown:Refresh(SpecWatch.CourtOptions) end)
         end
     })
-
+    specSec:Dropdown({
+        Name = "Camera mode",
+        Items = SpecWatch.CameraModes,
+        Default = SpecWatch.Mode,
+        Flag = "spectate_mode",
+        Callback = function(v) SpecWatch.SetMode(v) end
+    })
     specSec:Button({
-        Name = "Spectate",
+        Name = "Spectate match",
         Callback = function()
-            local plr = Players:FindFirstChild(specTarget)
-            if not plr or plr == LocalPlayer then
-                zolar:Notification({
-                    Name = "Spectate",
-                    Description = "Select a valid player first",
-                    Icon = "triangle-alert",
-                    Duration = 3
-                })
-                return
-            end
-            local ok = spectatePlayer(plr, nil)
-            if not ok then
-                zolar:Notification({
-                    Name = "Spectate",
-                    Description = "Couldn't spectate: player has no character",
-                    Icon = "triangle-alert",
-                    Duration = 3
-                })
-            end
+            SpecWatch.SetActive(false)
+            SpecWatch.SetActive(true)
+            zolar:Notification({
+                Name = "Spectate",
+                Description = SpecWatch.Active and (SpecWatch.Status .. " | " .. SpecWatch.PlayerSummary) or SpecWatch.Status,
+                Icon = SpecWatch.Active and "eye" or "triangle-alert",
+                Duration = 3
+            })
         end
     })
-
     specSec:Button({
         Name = "Stop spectating",
-        Callback = function() stopSpectating() end
+        Callback = function() SpecWatch.SetActive(false) end
     })
 
     RepSec:Toggle({
@@ -10158,6 +11330,7 @@ end
 
 J:Add(function()
     state.active = false
+    pcall(function() if SpecWatch then SpecWatch.SetActive(false) end end)
     pcall(settarget, nil)
     pcall(function() RunService:UnbindFromRenderStep("Server Position Predictor") end)
     pcall(resetBallChanger)
@@ -10186,4 +11359,4 @@ end, nil, "manual_leftovers")
 
 local deltaTime = os.clock() - startTime
 
-warn("Script section finished in " .. math.round(deltaTime) .. " seconds.")
+warn("loaded in " .. math.round(deltaTime) .. " seconds.")
