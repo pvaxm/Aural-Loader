@@ -2881,16 +2881,36 @@ do
         return best
     end
 
+    -- Precomputed lookup (0.1 stud steps, one per preference) so the per-frame call is
+    -- two table reads instead of scanning every power and every row.
+    local STEP = 0.1
+    local LUT = {}
+    local touchEnabled = UserInputService.TouchEnabled -- table was calibrated for mouse aim
+
+    do
+        local top = 0
+        for _, hi in pairs(maxRange) do top = math.max(top, hi) end
+        for _, pref in ipairs({ "Closest to 85", "Lowest", "Highest" }) do
+            local arcs, pows = {}, {}
+            for i = 0, math.floor(top / STEP) do
+                local d = i * STEP
+                local p = pickTablePower(d, pref, 95)
+                local a = p and tableArcAt(d, p)
+                if a then arcs[i], pows[i] = a, p end
+            end
+            LUT[pref] = { arc = arcs, pow = pows }
+        end
+    end
+
     -- returns arcOffset, power  (or nil when disabled / on mobile / table does not cover dist)
     function getTableShot(flatDist)
         local st = getgenv().Settings and getgenv().Settings.Shooting
-        if not (st and st.ArcTableAuto) or type(flatDist) ~= "number" then return nil end
-        if UserInputService.TouchEnabled then return nil end -- table was calibrated for mouse aim
-        local power = pickTablePower(flatDist, st.ArcTablePref or "Closest to 85", 95)
-        if not power then return nil end
-        local arc = tableArcAt(flatDist, power)
+        if not (st and st.ArcTableAuto) or touchEnabled or type(flatDist) ~= "number" then return nil end
+        local t = LUT[st.ArcTablePref] or LUT["Closest to 85"]
+        local i = math.floor(flatDist / STEP + 0.5)
+        local arc = t.arc[i]
         if not arc then return nil end
-        return arc, power
+        return arc, t.pow[i]
     end
 
     function flatDistTo(rim, fromPos)
@@ -6918,6 +6938,20 @@ do
         end)
     end
 
+    -- nearestgoal scans every goal; goals never move, so rescan 4x/second and only
+    -- recompute the distance to the cached goal each frame.
+    local cachedGoal, nextGoalScan = nil, 0
+    local function fastNearestGoal(root)
+        local now = os.clock()
+        if now >= nextGoalScan or not (cachedGoal and cachedGoal.Parent) then
+            nextGoalScan = now + 0.25
+            cachedGoal = nearestgoal(root)
+        end
+        if not cachedGoal then return nil, math.huge end
+        local d = cachedGoal.Position - root.Position
+        return cachedGoal, Vector3.new(d.X, 0, d.Z).Magnitude
+    end
+
     function updateAuralTarget()
         if not state.active or not s.Shooting.AuralEnabled then settarget(nil); return end
         local clickMode = s.Shooting.AuralTrigger == "Click"
@@ -6931,7 +6965,7 @@ do
         local head = char and char:FindFirstChild("Head")
         if not char or not hum or not root or not head or not hasball(char) then settarget(nil); return end
         if hum.FloorMaterial ~= Enum.Material.Air and not hum.Jump then settarget(nil); return end
-        local goal, distance = nearestgoal(root)
+        local goal, distance = fastNearestGoal(root)
         if not goal then settarget(nil); return end
         local tableArc, tablePower = getTableShot(distance)
         if distance < AURAL_MIN_DIST or (distance > AURAL_MAX_DIST and not tableArc) then
@@ -6964,6 +6998,10 @@ do
         end
 
         settarget(velocify(goal.Position + Vector3.new(0, offset, 0), distance))
+
+        -- Auto Power: keep the table power applied every frame (aim is already set above,
+        -- and setpower is pcall-protected + a no-op when the value is already correct)
+        if tablePower then setpower(tablePower) end
     end
 end
 
@@ -7061,6 +7099,200 @@ function hookactors()
     end
 end
 
+-- ============================================================
+-- RELEASE TIMING: perfect release + ping-adaptive release (ported from Golden Eagle)
+-- Applies to Aural silent aim in "Jump" trigger mode.
+-- ============================================================
+do
+    s.Release = s.Release or {
+        Perfect = false,
+        AutoCalibrate = false,
+        PrecisionSpin = true,
+        PingCompensation = true,
+        Base = 0.3195,        -- seconds from takeoff to the perfect release at ~0 ping
+        MinDelay = 0.205,
+        MaxDelay = 0.360,
+        MaxPing = 300,
+        PingAdaptive = false,
+        PingBaseline = 60,    -- ms treated as normal
+        PingStrength = 1,
+        PingMaxLead = 250,    -- ms, cap on how much earlier ping may move the release
+    }
+    local R = s.Release
+    local FILE = "Aural_Release.json"
+
+    local OFFSETS = {
+        0, 0.005, -0.005, 0.010, -0.010, 0.015, -0.015, 0.020, -0.020,
+        0.026, -0.026, 0.032, -0.032, 0.040, -0.040,
+    }
+
+    local rt = {
+        CalibratedBase = nil, Pending = nil, OffsetIndex = 1, Locked = false, Misses = 0,
+        Samples = {}, Hits = 0, Attempts = 0, Streak = 0, BestStreak = 0, LastResult = "IDLE",
+        PingSamples = {}, PingAverage = 0, PingSampledAt = 0,
+    }
+
+    local function getBase() return rt.CalibratedBase or R.Base end
+
+    local function saveCalibration()
+        if type(writefile) ~= "function" or not rt.CalibratedBase then return end
+        pcall(function()
+            writefile(FILE, HttpService:JSONEncode({ Base = rt.CalibratedBase, Hits = rt.Hits, Attempts = rt.Attempts }))
+        end)
+    end
+
+    pcall(function()
+        if type(readfile) ~= "function" or type(isfile) ~= "function" or not isfile(FILE) then return end
+        local data = HttpService:JSONDecode(readfile(FILE))
+        local base = tonumber(data and data.Base)
+        if base and base >= 0.15 and base <= 0.45 then
+            rt.CalibratedBase = base
+            rt.Locked = true
+        end
+    end)
+
+    -- ---------------- ping ----------------
+    local function readPing()
+        local ok, v = pcall(function() return dataping:GetValue() end)
+        return ok and tonumber(v) or 0
+    end
+
+    local function samplePing(force)
+        local now = os.clock()
+        if not force and now - rt.PingSampledAt < 0.25 then return end
+        rt.PingSampledAt = now
+        local v = math.clamp(readPing(), 0, 2000)
+        if v <= 0 then return end
+        local t = rt.PingSamples
+        t[#t + 1] = v
+        if #t > 15 then table.remove(t, 1) end
+        rt.PingAverage = (rt.PingAverage == 0) and v or (rt.PingAverage * 0.75 + v * 0.25)
+    end
+
+    J:Connect(RunService.Heartbeat, function()
+        if R.Perfect or R.PingAdaptive then samplePing(false) end
+    end, "ReleasePingSampler")
+
+    local function medianPing()
+        local t = rt.PingSamples
+        if #t == 0 then return readPing() end
+        local sorted = table.clone(t)
+        table.sort(sorted)
+        local mid = #sorted // 2 + 1
+        if #sorted % 2 == 1 then return sorted[mid] end
+        return (sorted[mid - 1] + sorted[mid]) * 0.5
+    end
+
+    -- seconds to release EARLIER because ping is above the baseline
+    function getAdaptiveLead()
+        if not R.PingAdaptive then return 0 end
+        if rt.PingAverage == 0 then samplePing(true) end
+        local excess = (rt.PingAverage - (tonumber(R.PingBaseline) or 60)) / 1000
+        if excess <= 0 then return 0 end
+        local maxLead = math.max(0, (tonumber(R.PingMaxLead) or 250) / 1000)
+        return math.clamp(excess * (tonumber(R.PingStrength) or 1), 0, maxLead)
+    end
+
+    -- ---------------- perfect release ----------------
+    -- delay (s) from takeoff to release = base + calibration probe - one-way latency - adaptive lead
+    function getReleaseDelay()
+        local ping = math.clamp(medianPing(), 0, R.MaxPing)
+        local oneWay = R.PingCompensation and ping / 2000 or 0
+        local offset = 0
+        if R.AutoCalibrate and not rt.Locked then offset = OFFSETS[rt.OffsetIndex] or 0 end
+        local delay = getBase() + offset - oneWay - getAdaptiveLead()
+        return math.clamp(delay, R.MinDelay, R.MaxDelay), ping, offset
+    end
+
+    -- wait (frame-stepped, then an optional busy-spin for the last frame) until releaseAt
+    function waitUntilRelease(releaseAt)
+        local step = 1 / 60
+        while os.clock() + step < releaseAt do
+            if not state.active then return end
+            step = math.clamp(RunService.Heartbeat:Wait(), 1 / 240, 1 / 15)
+        end
+        if R.PrecisionSpin then
+            local deadline = os.clock() + 0.05
+            while os.clock() < releaseAt and os.clock() < deadline do end
+        end
+    end
+
+    local function resolve(wasPerfect)
+        local pending = rt.Pending
+        if not pending then return end
+        rt.Pending = nil
+        rt.Attempts += 1
+
+        if wasPerfect then
+            rt.Hits += 1
+            rt.Misses = 0
+            rt.Streak += 1
+            if rt.Streak > rt.BestStreak then rt.BestStreak = rt.Streak end
+            rt.LastResult = "PERFECT"
+            if R.AutoCalibrate then
+                local adopted = math.clamp(getBase() + (pending.Offset or 0), 0.15, 0.45)
+                table.insert(rt.Samples, adopted)
+                if #rt.Samples >= 5 then
+                    table.sort(rt.Samples)
+                    rt.CalibratedBase = rt.Samples[math.ceil(#rt.Samples / 2)]
+                    rt.OffsetIndex = 1
+                    rt.Locked = true
+                    saveCalibration()
+                end
+            end
+            return
+        end
+
+        rt.Streak = 0
+        rt.Misses += 1
+        rt.LastResult = "NOT PERFECT"
+        if not R.AutoCalibrate then return end
+        if rt.Misses >= 2 then
+            rt.Locked = false
+            rt.OffsetIndex = (rt.OffsetIndex % #OFFSETS) + 1
+        end
+    end
+
+    function recordReleaseAttempt(delay, offset)
+        local token = {}
+        rt.Pending = { Delay = delay, Offset = offset or 0, At = os.clock(), Token = token }
+        rt.LastResult = "WAITING"
+        task.delay(1.35, function()
+            if rt.Pending and rt.Pending.Token == token then resolve(false) end
+        end)
+    end
+
+    -- the game tells us when a shot was a Perfect Shot
+    pcall(function()
+        local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+        local perfectEvent = remotes and remotes:FindFirstChild("perfectEvent")
+        if not perfectEvent then return end
+        J:Connect(perfectEvent.OnClientEvent, function(shooter)
+            if shooter == LocalPlayer then resolve(true) end
+        end, "PerfectReleaseHook")
+    end)
+
+    function getReleaseStats()
+        local acc = rt.Attempts > 0 and (rt.Hits / rt.Attempts * 100) or 0
+        return {
+            Streak = rt.Streak, Best = rt.BestStreak, Hits = rt.Hits, Attempts = rt.Attempts,
+            Accuracy = acc, Base = getBase(), Last = rt.LastResult, Locked = rt.Locked,
+            Ping = rt.PingAverage, Lead = getAdaptiveLead(),
+        }
+    end
+
+    function resetReleaseCalibration()
+        rt.CalibratedBase = nil
+        rt.Locked = false
+        rt.OffsetIndex = 1
+        rt.Misses = 0
+        table.clear(rt.Samples)
+        rt.Hits, rt.Attempts, rt.Streak, rt.BestStreak = 0, 0, 0, 0
+        rt.LastResult = "IDLE"
+        if type(delfile) == "function" then pcall(delfile, FILE) end
+    end
+end
+
 function setupCharacterAural(char)
     local hum = char:WaitForChild("Humanoid", 5)
     if not hum then return end
@@ -7122,7 +7354,20 @@ if s.Shooting.ArmInMatch and not IsInMatch() then return end
         targetPos = targetPos or goal.Position + Vector3.new(0, arc, 0)
 
         settarget(targetPos)
-        task.wait(0.05)
+
+        local rel = s.Release
+        local perfect = rel and rel.Perfect
+        local takeoffAt = os.clock()
+        if perfect then
+            -- takeoff = first frame the root is actually rising (same detection Golden Eagle uses)
+            local giveUp = takeoffAt + 0.12
+            while os.clock() < giveUp and root.AssemblyLinearVelocity.Y <= 3 do
+                RunService.Heartbeat:Wait()
+            end
+            takeoffAt = os.clock()
+        else
+            task.wait(0.05)
+        end
 
         if tablePower and setpower then
             setpower(tablePower)
@@ -7139,7 +7384,15 @@ if s.Shooting.ArmInMatch and not IsInMatch() then return end
             shotdelay = mn + math.random() * (mx - mn)
         end
 
-        task.wait(shotdelay)
+        if perfect then
+            local clientDelay, _, offset = getReleaseDelay()
+            waitUntilRelease(takeoffAt + clientDelay)
+            if not (state.active and s.Shooting.AuralEnabled and hasball(char)) then return end
+            recordReleaseAttempt(clientDelay, offset)
+        else
+            -- ping-adaptive release also shortens the normal shot delay when ping is high
+            task.wait(math.max(0, shotdelay - getAdaptiveLead()))
+        end
         doClick()
         task.wait(0.1)
         updateAuralTarget()
@@ -7192,9 +7445,20 @@ local fatalState = {
 }
 
 do
+    -- Only writes when the value actually differs (so it is safe to call every frame and
+    -- still corrects it if the game overwrites Power). The SharedTable access stays inside
+    -- pcall: an error here must never be able to stop the aim/shot code that called us.
+    local powerData
+    local function writeSharedPower(p)
+        if not powerData then powerData = SharedTableRegistry:GetSharedTable("PowerData") end
+        if powerData.Power ~= p then powerData.Power = p end
+    end
+    local function writeAttrPower(p)
+        if LocalPlayer:GetAttribute("Power") ~= p then LocalPlayer:SetAttribute("Power", p) end
+    end
     setpower = function(p)
-        LocalPlayer:SetAttribute("Power", p)
-        pcall(function() SharedTableRegistry:GetSharedTable("PowerData").Power = p end)
+        pcall(writeAttrPower, p)
+        pcall(writeSharedPower, p)
     end
 
     function screencenter()
@@ -8228,6 +8492,7 @@ do
 
     local arrayModules = {
         { "Silent Aim",       function() return s.Shooting.AuralEnabled or s.Shooting.FatalEnabled end },
+        { "Perfect Release",  function() return s.Release and s.Release.Perfect end },
         { "Humanize Aim",     function() return s.Shooting.HumanizeAim end },
         { "Aim Assist",       function() return s.Shooting.AimAssist end },
         { "EBL Hop",          function() return s.Shooting.EBLHop end },
@@ -9995,6 +10260,62 @@ do
     })
 
     fatalSection:Toggle({ Name = "Aim Assist (only shoot when looking up)", Default = s.Shooting.AimAssist, Flag = "fatal_aimassist", Callback = function(v) s.Shooting.AimAssist = v end })
+
+    local releaseSection = offenseSub:Section({ Name = "Release Timing (Aural / Jump mode)", Side = 1 })
+    releaseSection:Toggle({
+        Name = "Perfect release",
+        Default = s.Release.Perfect,
+        Flag = "release_perfect",
+        Callback = function(v) s.Release.Perfect = v end
+    })
+    releaseSection:Toggle({
+        Name = "Self-calibrate release",
+        Default = s.Release.AutoCalibrate,
+        Flag = "release_autocal",
+        Callback = function(v) s.Release.AutoCalibrate = v end
+    })
+    releaseSection:Toggle({
+        Name = "Precision spin (exact release frame)",
+        Default = s.Release.PrecisionSpin,
+        Flag = "release_spin",
+        Callback = function(v) s.Release.PrecisionSpin = v end
+    })
+    releaseSection:Toggle({
+        Name = "Ping compensation",
+        Default = s.Release.PingCompensation,
+        Flag = "release_pingcomp",
+        Callback = function(v) s.Release.PingCompensation = v end
+    })
+    releaseSection:Slider({ Name = "Release base delay", Min = 0.15, Max = 0.45, Default = s.Release.Base, Decimals = 0.0005, Suffix = "s", Flag = "release_base", Callback = function(v) s.Release.Base = v end })
+    releaseSection:Toggle({
+        Name = "Ping-adaptive release",
+        Default = s.Release.PingAdaptive,
+        Flag = "release_pingadaptive",
+        Callback = function(v) s.Release.PingAdaptive = v end
+    })
+    releaseSection:Slider({ Name = "Baseline ping", Min = 0, Max = 300, Default = s.Release.PingBaseline, Step = 1, Suffix = "ms", Flag = "release_pingbase", Callback = function(v) s.Release.PingBaseline = v end })
+    releaseSection:Slider({ Name = "Ping strength", Min = 0, Max = 3, Default = s.Release.PingStrength, Decimals = 0.05, Flag = "release_pingstrength", Callback = function(v) s.Release.PingStrength = v end })
+    releaseSection:Slider({ Name = "Max ping lead", Min = 0, Max = 500, Default = s.Release.PingMaxLead, Step = 5, Suffix = "ms", Flag = "release_pingmax", Callback = function(v) s.Release.PingMaxLead = v end })
+    releaseSection:Button({
+        Name = "Release stats",
+        Callback = function()
+            local st = getReleaseStats()
+            zolar:Notification({
+                Name = "Release: " .. tostring(st.Last),
+                Description = string.format("%d/%d perfect (%.0f%%) | streak %d (best %d) | base %.4fs%s | ping %.0fms +%.0fms lead",
+                    st.Hits, st.Attempts, st.Accuracy, st.Streak, st.Best, st.Base, st.Locked and " locked" or "", st.Ping, st.Lead * 1000),
+                Icon = "crown",
+                Duration = 5
+            })
+        end
+    })
+    releaseSection:Button({
+        Name = "Reset release calibration",
+        Callback = function()
+            resetReleaseCalibration()
+            zolar:Notification({ Name = "Release", Description = "Calibration reset to the base delay slider.", Icon = "refresh-cw", Duration = 3 })
+        end
+    })
 
     local selfPassSection = offenseSub:Section({ Name = "Self Pass", Side = 1 })
     selfPassSection:Toggle({
