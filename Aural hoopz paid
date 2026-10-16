@@ -1148,7 +1148,7 @@ local hoopDistConnection        = nil
 
 getgenv().Settings = {
     Shooting = {
-        Mode = "Aural", AuralKeybind = Enum.KeyCode.X, HumanizeAim = false, HumanizeStrength = 0, MissChance = 0, AuralEnabled = false, ArmInMatch = false, FatalEnabled = false,
+        Mode = "Aural", AuralKeybind = Enum.KeyCode.X, AuralAimAssist = false, HumanizeAim = false, HumanizeStrength = 0, MissChance = 0, AuralEnabled = false, ArmInMatch = false, FatalEnabled = false,
         ShotDelay = 0.32, ShotYAxis = 0, RandomizeShotDelay = false,
         ShotDelayMin = 0.25, ShotDelayMax = 0.38, GreenChance = 0,
         ThreesOnly = false, AimAssist = false, EBLHop = false,
@@ -6958,6 +6958,12 @@ do
         return cachedGoal, Vector3.new(d.X, 0, d.Z).Magnitude
     end
 
+    function auralLookOk(goal)
+    local camCF = Camera.CFrame
+    local wanted = (goal.Position - camCF.Position).Unit.Y
+    return camCF.LookVector.Y >= math.min(0.3, wanted - 0.12)
+end
+
     function updateAuralTarget()
 if getgenv().__aural_passOverride then return end
         if not state.active or not s.Shooting.AuralEnabled then settarget(nil); return end
@@ -6974,6 +6980,7 @@ if getgenv().__aural_passOverride then return end
         if hum.FloorMaterial ~= Enum.Material.Air and not hum.Jump then settarget(nil); return end
         local goal, distance = fastNearestGoal(root)
         if not goal then settarget(nil); return end
+        if s.Shooting.AuralAimAssist and not auralLookOk(goal) then settarget(nil); return end
         local tableArc, tablePower = getTableShot(distance)
         if distance < AURAL_MIN_DIST or (distance > AURAL_MAX_DIST and not tableArc) then
             settarget(nil)
@@ -7399,6 +7406,10 @@ if s.Shooting.ArmInMatch and not IsInMatch() then return end
         else
             -- ping-adaptive release also shortens the normal shot delay when ping is high
             task.wait(math.max(0, shotdelay - getAdaptiveLead()))
+        end
+        if s.Shooting.AuralAimAssist and not auralLookOk(goal) then
+            settarget(nil)
+            return
         end
         doClick()
         task.wait(0.1)
@@ -10202,6 +10213,12 @@ do
 
 
     })
+    auralSection:Toggle({
+    Name = "Aim Assist",
+    Default = s.Shooting.AuralAimAssist,
+    Flag = "aural_aimassist",
+    Callback = function(v) s.Shooting.AuralAimAssist = v end
+})
     auralSection:Toggle({
         Name = "Humanize Aim",
         Default = s.Shooting.HumanizeAim,
