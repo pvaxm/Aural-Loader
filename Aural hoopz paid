@@ -1191,8 +1191,8 @@ getgenv().Settings = {
         ArrayList = false,
     },
     Ball = {
-        BallMags = false, SmartReach = false, SmartReachDistance = 14, BallMagRange = 15, BallMagVisualizer = false, MagnetKeybind = "M",
-        BallReach = false, BallReachRange = 10, BallReachVisualizer = false, ReachKeybind = "N",
+        BallMags = false, SmartReach = false, SmartReachDistance = 11, BallMagRange = 0.1, BallMagVisualizer = false, MagnetKeybind = "M",
+        BallReach = false, BallReachRange = 0.1, BallReachVisualizer = false, ReachKeybind = "N",
     },
     Player = { Walkspeed = false, WSvalue = 1.35 },
     Misc = {
@@ -3286,8 +3286,14 @@ do
         end
 
         if setpower then setpower(basePower) end
-        if fatalClick then fatalClick(finalPos) end
-        return true
+getgenv().__aural_passOverride = true
+settarget(finalPos)
+task.wait(0.05)
+doClick()
+task.wait(0.25)
+settarget(nil)
+getgenv().__aural_passOverride = false
+return true
     end
 
     function executeDimeSilentAim(targetPos, passPower)
@@ -6953,6 +6959,7 @@ do
     end
 
     function updateAuralTarget()
+if getgenv().__aural_passOverride then return end
         if not state.active or not s.Shooting.AuralEnabled then settarget(nil); return end
         local clickMode = s.Shooting.AuralTrigger == "Click"
         if clickMode and not (UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
@@ -7806,32 +7813,13 @@ function performSelfPass()
 
     if setpower then setpower(s.SelfPass.Power or 85) end
 
-    local origcf = Camera.CFrame
-    local origct = Camera.CameraType
-    local origmb = UserInputService.MouseBehavior
-
-    getgenv().__aural_aiming = true
-
-    Camera.CameraType = Enum.CameraType.Scriptable
-    UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-    Camera.CFrame = CFrame.lookAt(hrp.Position, aimPoint)
-
-    local cx, cy = screencenter()
-    Input:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
-    RunService.RenderStepped:Wait()
-    Input:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
-
-    Camera.CFrame = origcf
-    Camera.CameraType = origct
-    if origmb ~= Enum.MouseBehavior.LockCenter then
-        UserInputService.MouseBehavior = origmb
-    end
-
-    task.defer(function()
-        task.wait()
-        getgenv().__aural_aiming = false
-        pcall(restoreMouseBehavior)
-    end)
+    getgenv().__aural_passOverride = true
+    settarget(aimPoint)
+    task.wait(0.05)
+    doClick()
+    task.wait(0.25)
+    settarget(nil)
+    getgenv().__aural_passOverride = false
 end
 
 function enableSelfPass()
@@ -8169,7 +8157,13 @@ local function fireMobileSelfPass()
     if setpower then setpower(s.SelfPass.Power or 85) end
 
     task.spawn(function()
-        if fatalClick then fatalClick(aimPoint) end
+        getgenv().__aural_passOverride = true
+        settarget(aimPoint)
+        task.wait(0.05)
+        doClick()
+        task.wait(0.25)
+        settarget(nil)
+        getgenv().__aural_passOverride = false
     end)
 
     return true
@@ -10736,6 +10730,7 @@ headRideSec:Toggle({
         Name = "Magnet size",
         Min = 1, Max = 50,
         Default = s.Ball.BallMagRange,
+        Decimals = 0.1,
         Flag = "ball_magrange",
         Callback = function(v)
             s.Ball.BallMagRange = v
@@ -10790,6 +10785,7 @@ headRideSec:Toggle({
         Name = "Reach size",
         Min = 1, Max = 30,
         Default = s.Ball.BallReachRange or 10,
+        Decimals = 0.1,
         Flag = "ball_reachrange",
         Callback = function(v) s.Ball.BallReachRange = v end
     })
@@ -11108,7 +11104,7 @@ headRideSec:Toggle({
                         end
                         if rim and dist then
                             local minDist = s.Shooting.ThreesOnly and 55 or FATAL_MIN_DIST
-                            local maxDist = FATAL_MAX_DIST_95
+                            local maxDist = FATAL_MAX_DIST
                             if dist >= minDist and (dist <= maxDist or getTableShot(flatDistTo(rim, root.Position))) then
                                 inRange = true
                             end
