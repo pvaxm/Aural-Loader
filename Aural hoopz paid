@@ -7643,6 +7643,10 @@ do
             fatalState.inRange = false
             return
         end
+        if hasball(char) and not getgenv().__aural_passOverride then
+        local _, tablePower = getTableShot(flatDistTo(rim, hrp.Position))
+        if tablePower then setpower(tablePower) end
+        end
         local selectedPower = 85
         if dist > FATAL_MAX_DIST_85 then selectedPower = 90; if dist > FATAL_MAX_DIST_90 then selectedPower = 95 end end
         local maxDist = FATAL_MAX_DIST_85
@@ -11104,8 +11108,8 @@ headRideSec:Toggle({
                         end
                         if rim and dist then
                             local minDist = s.Shooting.ThreesOnly and 55 or FATAL_MIN_DIST
-                            local maxDist = FATAL_MAX_DIST
-                            if dist >= minDist and (dist <= maxDist or getTableShot(flatDistTo(rim, root.Position))) then
+                            local maxDist = AURAL_MAX_DIST
+                            if dist >= minDist and (dist <= maxDist or getTableShot(flat)) then
                                 inRange = true
                             end
                         end
