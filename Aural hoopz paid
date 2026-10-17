@@ -10284,7 +10284,7 @@ do
 
     fatalSection:Toggle({ Name = "Aim Assist (only shoot when looking up)", Default = s.Shooting.AimAssist, Flag = "fatal_aimassist", Callback = function(v) s.Shooting.AimAssist = v end })
 
-    local releaseSection = offenseSub:Section({ Name = "Release Timing (Aural / Jump mode)", Side = 1 })
+    local releaseSection = offenseSub:Section({ Name = "Release Timing", Side = 1 })
     releaseSection:Toggle({
         Name = "Perfect release",
         Default = s.Release.Perfect,
@@ -10341,7 +10341,7 @@ do
     })
 
     local selfPassSection = offenseSub:Section({ Name = "Self Pass", Side = 1 })
-    selfPassSection:Toggle({
+    local selfPassToggle = selfPassSection:Toggle({
         Name = "Enable Self Pass",
         Default = s.SelfPass.Enabled,
         Flag = "selfpass_toggle",
@@ -10350,7 +10350,7 @@ do
             if value then enableSelfPass() else disableSelfPass() end
         end
     })
-    selfPassSection:Keybind({
+    selfPassToggle:Keybind({
         Name = "Self Pass Keybind",
         Default = Enum.KeyCode.T,
         Flag = "selfpass_keybind",
@@ -10368,7 +10368,7 @@ do
     selfPassSection:Slider({ Name = "Pass Angle", Min = 90, Max = 180, Default = s.SelfPass.Angle, Flag = "selfpass_angle", Callback = function(v) s.SelfPass.Angle = v end })
 
     local autoDimeSection = offenseSub:Section({ Name = "Auto Dime & Quick Pass", Side = 2 })
-    autoDimeSection:Toggle({
+    local autoDimeToggle = autoDimeSection:Toggle({
         Name = "Enable Auto Dime",
         Default = s.AutoDime.Enabled,
         Flag = "autodime_toggle",
@@ -10383,7 +10383,7 @@ do
             end
         end
     })
-    autoDimeSection:Keybind({
+    autoDimeToggle:Keybind({
         Name = "Auto Dime Keybind",
         Default = Enum.KeyCode.G,
         Flag = "autodime_keybind",
@@ -10754,7 +10754,7 @@ headRideSec:Toggle({
         end
     })
     uiToggles.magnet = magnetToggle
-    ballSec:Keybind({ Name = "Magnet keybind", Default = Enum.KeyCode.M, Flag = "ball_mag_keybind", OnChanged = function(key) if not key or key.EnumType ~= Enum.KeyCode then return end s.Ball.MagnetKeybind = key.Name end })
+    magnetToggle:Keybind({ Name = "Magnet keybind", Default = Enum.KeyCode.M, Flag = "ball_mag_keybind", OnChanged = function(key) if not key or key.EnumType ~= Enum.KeyCode then return end s.Ball.MagnetKeybind = key.Name end })
     ballSec:Slider({
         Name = "Magnet size",
         Min = 1, Max = 50,
@@ -10785,7 +10785,7 @@ headRideSec:Toggle({
         end
     })
     uiToggles.reach = reachToggle
-    ballSec:Keybind({
+    reachToggle:Keybind({
         Name = "Reach keybind",
         Default = Enum.KeyCode.N,
         Flag = "ball_reach_keybind",
