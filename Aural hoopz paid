@@ -1104,7 +1104,7 @@ local execName = identifyexecutor and identifyexecutor() or ""
 
 local zolar
 pcall(function()
-    local body = game:HttpGet("https://raw.githubusercontent.com/wimazawa-eng/ap/refs/heads/main/slidertesting.lua")
+    local body = game:HttpGet("https://raw.githubusercontent.com/wimazawa-eng/ap/refs/heads/main/Testing.lua.txt")
     local fn = loadstring(body)
     if fn then zolar = fn() end
 end)
