@@ -1104,11 +1104,12 @@ local execName = identifyexecutor and identifyexecutor() or ""
 
 local zolar
 pcall(function()
-    local body = game:HttpGet("https://raw.githubusercontent.com/wimazawa-eng/ap/refs/heads/main/Testing.lua.txt")
+    local body = game:HttpGet("https://raw.githubusercontent.com/wimazawa-eng/ap/refs/heads/main/slidertesting.lua")
     local fn = loadstring(body)
     if fn then zolar = fn() end
 end)
 zolar.Version = "3.6"
+local List = zolar:KeybindList()
 
 if zolar and type(zolar.Notification) == "function" then
     for _, exec in ipairs(trash) do
@@ -7774,8 +7775,15 @@ if s.Defending.OnlyGuardInMatch and not IsInMatch() then return end
     end
 
     function disableAutoGuard()
-        if guardConnection then guardConnection:Disconnect(); guardConnection = nil end
+    if guardConnection then guardConnection:Disconnect(); guardConnection = nil end
+
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if hum and root then
+        hum:MoveTo(root.Position)
     end
+end
 
     function enableSpeedBoost()
         if speedConnection then speedConnection:Disconnect(); speedConnection = nil end
@@ -11091,6 +11099,13 @@ headRideSec:Toggle({
             if setArrayListAccent then setArrayListAccent(color) end
         end
     })
+    otherVisSec:Toggle({
+    Name = "Keybind list",
+    Default = true,
+    Callback = function(Value)
+        if List then List:SetVisible(Value) end
+    end
+})
     otherVisSec:Toggle({ Name = "Visualize ball trajectory", Default = s.Visuals.VisualizeBallProjectory, Flag = "vis_trajectory", Callback = function(v) s.Visuals.VisualizeBallProjectory = v end })
     otherVisSec:Dropdown({
         Name = "Trajectory color",
